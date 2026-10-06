@@ -38,8 +38,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- window/taskbar icon resource -->
+    <!-- window/taskbar icon resource + start-page/wizard logo -->
     <Resource Include="..\..\assets\appicon.ico" Link="assets\appicon.ico" />
+    <Resource Include="..\..\assets\appicon-256.png" Link="assets\appicon-256.png" />
   </ItemGroup>
 
   <!-- WinForms is needed ONLY for FolderBrowserDialog; drop its implicit usings so

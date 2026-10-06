@@ -9,6 +9,14 @@ namespace LatchiBrowser.Core.Services;
 /// </summary>
 public static partial class UrlHelper
 {
+    /// <summary>The internal LATCHI start page (shortcuts + search) — never a real
+    /// web navigation; the app shows its own WPF start page instead.</summary>
+    public const string StartUrl = "latchi://start";
+
+    /// <summary>True when this url is the internal start page.</summary>
+    public static bool IsStartUrl(string? url) =>
+        string.Equals(url?.Trim(), StartUrl, StringComparison.OrdinalIgnoreCase);
+
     [GeneratedRegex(@"^[a-z][a-z0-9+.\-]*://", RegexOptions.IgnoreCase)]
     private static partial Regex SchemeRegex();
 

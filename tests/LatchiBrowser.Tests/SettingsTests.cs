@@ -18,8 +18,9 @@ public class SettingsTests
         var dir = TempDir();
         var store = new SettingsStore(dir);
         Assert.Equal("ar", store.Current.Language);
-        Assert.Equal("https://www.google.com", store.Current.HomePage);
+        Assert.Equal(UrlHelper.StartUrl, store.Current.HomePage);   // v1.1: internal start page
         Assert.Equal("google", store.Current.SearchEngineId);
+        Assert.False(store.Current.FirstRunCompleted);                  // wizard runs on first launch
     }
 
     [Fact]
@@ -45,7 +46,7 @@ public class SettingsTests
         File.WriteAllText(Path.Combine(dir, "settings.json"), "{ this is not json !!!");
         var store = new SettingsStore(dir);
         Assert.Equal("ar", store.Current.Language);          // safe default, browser keeps running
-        Assert.Equal("https://www.google.com", store.Current.HomePage);
+        Assert.Equal(UrlHelper.StartUrl, store.Current.HomePage);
     }
 
     [Theory]
@@ -58,12 +59,14 @@ public class SettingsTests
         => Assert.Equal(expected, SettingsStore.NormalizeLanguage(input));
 
     [Theory]
-    [InlineData(null, "https://www.google.com")]
-    [InlineData("not a url", "https://www.google.com")]
-    [InlineData("ftp://x.com", "https://www.google.com")]
+    [InlineData(null, "latchi://start")]
+    [InlineData("not a url", "latchi://start")]
+    [InlineData("ftp://x.com", "latchi://start")]
     [InlineData("https://x.com", "https://x.com")]
     [InlineData("http://localhost:8080", "http://localhost:8080")]
-    public void NormalizeHomePage_OnlyHttpUrls(string? input, string expected)
+    [InlineData("latchi://start", "latchi://start")]          // v1.1: internal start page
+    [InlineData("LATCHI://START", "latchi://start")]          // case-insensitive
+    public void NormalizeHomePage_StartPageOrHttpUrls(string? input, string expected)
         => Assert.Equal(expected, SettingsStore.NormalizeHomePage(input));
 
     [Theory]

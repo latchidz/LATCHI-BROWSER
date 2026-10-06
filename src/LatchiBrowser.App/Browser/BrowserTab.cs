@@ -23,6 +23,7 @@ public sealed class BrowserTab : IDisposable, INotifyPropertyChanged
     private bool _canGoForward;
     private bool _isActive;
     private bool _isPinned;
+    private bool _isOnStartPage;
     private DateTime _lastUsedUtc = DateTime.UtcNow;
 
     public BrowserTab(LatchiBrowser.Core.Models.BrowserProfile profile, bool isInPrivate, string language)
@@ -40,6 +41,9 @@ public sealed class BrowserTab : IDisposable, INotifyPropertyChanged
     /// <summary>Private tabs (§36) run InPrivate under the same profile — and never record history.</summary>
     public bool IsInPrivate { get; }
     public bool IsPinned { get => _isPinned; set => Set(ref _isPinned, value); }
+    /// <summary>True while this tab shows the internal LATCHI start page (no webview
+    /// navigation happens; the window overlays its own WPF start page).</summary>
+    public bool IsOnStartPage { get => _isOnStartPage; private set => Set(ref _isOnStartPage, value); }
     public DateTime LastUsedUtc { get => _lastUsedUtc; private set => Set(ref _lastUsedUtc, value); }
 
     // ── live state ──────────────────────────────────────────────────────
@@ -99,7 +103,14 @@ public sealed class BrowserTab : IDisposable, INotifyPropertyChanged
         {
             if (!string.IsNullOrEmpty(core.DocumentTitle)) Title = core.DocumentTitle;
         };
-        core.SourceChanged += (s, e) => Address = core.Source?.ToString() ?? "";
+        core.SourceChanged += (s, e) =>
+        {
+            Address = core.Source?.ToString() ?? "";
+            // leaving the internal start page for a real site
+            if (Address.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || Address.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                IsOnStartPage = false;
+        };
         core.NavigationStarting += (s, e) => IsLoading = true;
         core.NavigationCompleted += (s, e) =>
         {
@@ -120,14 +131,34 @@ public sealed class BrowserTab : IDisposable, INotifyPropertyChanged
         core.ContainsFullScreenElementChanged += (s, e) =>
             ContentFullscreenChanged?.Invoke(this, core.ContainsFullScreenElement);
 
-        Logger.Info($"tab {TabId[..6]} opened → {Logger.HostOnly(startUrl)}");
-        core.Navigate(startUrl);
+        Logger.Info($"tab {TabId[..6]} opened → {(UrlHelper.IsStartUrl(startUrl) ? "start page" : Logger.HostOnly(startUrl))}");
+        if (UrlHelper.IsStartUrl(startUrl))
+        {
+            // internal start page — no web navigation, the window shows the WPF overlay
+            IsOnStartPage = true;
+            Address = UrlHelper.StartUrl;
+        }
+        else
+        {
+            core.Navigate(startUrl);
+        }
     }
 
     // ── commands (all no-op safely before init) ─────────────────────────
     public void Navigate(string url)
     {
-        if (Core is { } core) core.Navigate(url);
+        // the internal start page is a UI state, not a web navigation
+        if (UrlHelper.IsStartUrl(url))
+        {
+            IsOnStartPage = true;
+            Address = UrlHelper.StartUrl;
+            return;
+        }
+        if (Core is { } core)
+        {
+            IsOnStartPage = false;
+            core.Navigate(url);
+        }
     }
 
     public void GoBack() => Core?.GoBack();

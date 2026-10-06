@@ -144,6 +144,16 @@ public static class Loc
 
         ["confirmYes"] = ("نعم", "Yes"),
         ["confirmNo"]  = ("لا", "No"),
+
+        // ── first-run wizard (user request 2026-10-06) ──
+        ["welcomeTitle"]        = ("مرحبًا بك في LATCHI Browser", "Welcome to LATCHI Browser"),
+        ["welcomeNote"]         = ("سجّل الدخول بحسابك في Google لتجهيز حسابك الخاص — بجلسة معزولة تمامًا تبقى محفوظة على جهازك.", "Sign in with your Google account to set up your own space — a fully isolated session that stays saved on this device."),
+        ["continueWithGoogle"]  = ("المتابعة باستخدام Google", "Continue with Google"),
+        ["googleSecurityNote"]  = ("يفتح التطبيق صفحة Google الرسمية للتسجيل. لا يطلب LATCHI كلمة السر ولا يراها ولا يخزّنها أبدًا.", "Opens the official Google sign-in page. LATCHI never asks for, sees or stores your password."),
+        ["googleFooterNote"]    = ("تسجيل الدخول يتم عبر accounts.google.com الرسمي · جميع الحقوق لمالكيها", "Sign-in happens on the official accounts.google.com · all rights belong to their owners"),
+        ["signedInOk"]          = ("تم تسجيل الدخول بنجاح", "Signed in successfully"),
+        ["mustSignIn"]          = ("يلزم تسجيل الدخول بحساب Google لبدء استخدام LATCHI Browser. شغّل التطبيق مرة أخرى للتسجيل.", "Signing in with a Google account is required to start LATCHI Browser. Run the app again to sign in."),
+        ["startSearchHint"]     = ("ابحث في Google أو اكتب عنوانًا", "Search Google or type a URL"),
     };
 
     /// <summary>Looks up a localized string. Unknown keys return themselves (visible, testable).</summary>

@@ -122,6 +122,31 @@ public partial class MainWindow : Window
         AddressBox.Focus();
     }
 
+    /* ═════════════════ navigation entry points (one door — start-page aware) ═════════════════ */
+
+    /// <summary>Every internal navigation goes through here: leaving the start page,
+    /// real sites, searches. The engine itself stays invisible (user request: no
+    /// "starting engine" states anywhere in the UI).</summary>
+    private void GoTo(BrowserTab tab, string url)
+    {
+        tab.Navigate(url);                       // handles latchi://start itself
+        if (!UrlHelper.IsStartUrl(url) && tab == Active && tab.WebView is not null)
+            tab.WebView.Visibility = Visibility.Visible;
+        SyncToolbar();
+    }
+
+    private void OnStartPageSearch(string text)
+    {
+        if (Active is null) return;
+        GoTo(Active, UrlHelper.ResolveAddress(text, SearchEngine, Home));
+    }
+
+    private void OnStartPageNavigate(string url)
+    {
+        if (Active is null) return;
+        GoTo(Active, url);
+    }
+
     /* ═════════════════ profiles (§14-§20) — real isolation, real Google login ═════════════════ */
 
     private BrowserProfile CurrentProfile =>
@@ -295,7 +320,10 @@ public partial class MainWindow : Window
         // show ONLY the active tab's webview — every other tab (including other
         // profiles' live tabs) stays alive but hidden (sessions persist, §19)
         foreach (var child in ContentHost.Children.OfType<WebView2>())
-            child.Visibility = child == tab.WebView ? Visibility.Visible : Visibility.Collapsed;
+            child.Visibility = child == tab.WebView && !tab.IsOnStartPage
+                ? Visibility.Visible : Visibility.Collapsed;
+        // the internal start page overlays the (empty) webview area
+        StartPage.Visibility = tab.IsOnStartPage ? Visibility.Visible : Visibility.Collapsed;
         SyncToolbar();
     }
 
@@ -374,6 +402,7 @@ public partial class MainWindow : Window
     {
         BtnBack.IsEnabled = Active?.CanGoBack == true;
         BtnForward.IsEnabled = Active?.CanGoForward == true;
+        BtnStar.IsEnabled = Active is not null && !Active.IsOnStartPage; // start page isn't bookmarkable
         UpdateReloadStop();
         UpdateAddressBox();
         SyncStar();
@@ -389,6 +418,13 @@ public partial class MainWindow : Window
     private void UpdateAddressBox()
     {
         if (Active is null) return;
+        if (Active.IsOnStartPage)
+        {
+            // start page: empty bar + hint — never an internal pseudo-URL
+            if (!AddressBox.IsKeyboardFocused)
+                ShowAddressHint(Loc.S(_lang, "addressHint"));
+            return;
+        }
         if (!AddressBox.IsKeyboardFocused && !_addressHintOn)
             AddressBox.Text = Active.Address;
         var secure = Active.Address.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
@@ -415,7 +451,7 @@ public partial class MainWindow : Window
         var resolved = UrlHelper.ResolveAddress(AddressBox.Text, SearchEngine, Home);
         if (Active is not null)
         {
-            Active.Navigate(resolved);
+            GoTo(Active, resolved);
             Active.WebView?.Focus(); // keys belong to the page again
         }
         e.Handled = true;
@@ -486,10 +522,10 @@ public partial class MainWindow : Window
                 Content = b.Title,
                 ToolTip = b.Url,
             };
-            chip.Click += (_, _) => Active?.Navigate(url);
+            chip.Click += (_, _) => { if (Active is not null) GoTo(Active, url); };
             chip.ContextMenu = new ContextMenu { FontSize = 12.5 };
             var miOpen = new MenuItem { Header = Loc.S(_lang, "bookmarkOpen") };
-            miOpen.Click += (_, _) => Active?.Navigate(url);
+            miOpen.Click += (_, _) => { if (Active is not null) GoTo(Active, url); };
             var miRemove = new MenuItem { Header = Loc.S(_lang, "bookmarkRemove") };
             miRemove.Click += (_, _) => { _bookmarks.Remove(url); RebuildBookmarkBar(); SyncStar(); };
             chip.ContextMenu.Items.Add(miOpen);
@@ -753,10 +789,14 @@ public partial class MainWindow : Window
     {
         if (Active is null) return;
         if (Active.IsLoading) Active.Stop();
-        else Active.Reload();
+        else if (!Active.IsOnStartPage) Active.Reload(); // nothing to reload on the start page
     }
 
-    private void OnHomeClick(object sender, RoutedEventArgs e) => Active?.Navigate(Home);
+    private void OnHomeClick(object sender, RoutedEventArgs e)
+    {
+        if (Active is null) return;
+        GoTo(Active, Home);   // Home may be the internal start page — GoTo handles it
+    }
     private async void OnNewTabClick(object sender, RoutedEventArgs e) => await NewTabAsync();
 
     private void OnTabClick(object sender, MouseButtonEventArgs e)
@@ -918,8 +958,8 @@ public partial class MainWindow : Window
         if (ctrl && e.Key == Key.W) { if (Active is not null) CloseTab(Active); e.Handled = true; return; }
         if (ctrl && e.Key == Key.Tab) { CycleTab(shift ? -1 : +1); e.Handled = true; return; }
         if (ctrl && e.Key == Key.L) { AddressBox.Focus(); AddressBox.SelectAll(); e.Handled = true; return; }
-        if (ctrl && e.Key == Key.R) { Active?.Reload(); e.Handled = true; return; }
-        if (e.Key == Key.F5) { Active?.Reload(); e.Handled = true; return; }
+        if (ctrl && e.Key == Key.R) { if (Active is { IsOnStartPage: false }) Active.Reload(); e.Handled = true; return; }
+        if (e.Key == Key.F5) { if (Active is { IsOnStartPage: false }) Active.Reload(); e.Handled = true; return; }
         if (alt && e.Key == Key.Left) { Active?.GoBack(); e.Handled = true; return; }
         if (alt && e.Key == Key.Right) { Active?.GoForward(); e.Handled = true; return; }
         // rounds 2-7
@@ -969,8 +1009,10 @@ public partial class MainWindow : Window
         AiInput.ToolTip = Loc.S(_lang, "aiInputHint");
         BtnAiSend.ToolTip = Loc.S(_lang, "aiSend");
         UpdateReloadStop();
-        if (_env is null) ShowAddressHint(Loc.S(_lang, "startingEngine"));
-        else ShowAddressHint(Loc.S(_lang, "addressHint"));
+        StartPage.ApplyLanguage(_lang);
+        // the engine stays invisible (user request): no "starting" state is ever shown —
+        // the first tab simply appears on the start page when everything is ready
+        if (!AddressBox.IsKeyboardFocused) ShowAddressHint(Loc.S(_lang, "addressHint"));
     }
 
     /* ═════════════════ fatal-error panel (§5/§75 — never a dead window) ═════════════════ */

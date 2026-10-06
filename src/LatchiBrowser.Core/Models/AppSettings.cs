@@ -14,13 +14,17 @@ public class AppSettings
     public string Language { get; set; } = "ar";
 
     /// <summary>Home page — any absolute http(s) URL (normalized on load).</summary>
-    public string HomePage { get; set; } = "https://www.google.com";
+    public string HomePage { get; set; } = UrlHelper.StartUrl;   // v1.1: internal start page (search + shortcuts)
 
     /// <summary>Address-bar search engine id (§23): google | bing | duckduckgo (custom comes with the Settings round).</summary>
     public string SearchEngineId { get; set; } = "google";
 
     /// <summary>Show the bookmarks bar by default (§25, Ctrl+Shift+B toggles).</summary>
     public bool ShowBookmarksBar { get; set; } = true;
+
+    /// <summary>First-run wizard (language choice + Google sign-in) — false until the
+    /// user completes it once; after that the browser opens directly.</summary>
+    public bool FirstRunCompleted { get; set; } = false;
 
     /// <summary>LATCHI AI assistant (§54): disabled until the user provides a key in Settings.</summary>
     public bool GeminiEnabled { get; set; } = false;

@@ -59,14 +59,16 @@ public class SettingsStore
 
     public static string NormalizeLanguage(string? lang) => lang is "en" or "ar" ? lang : "ar";
 
-    /// <summary>Accepts any absolute http(s) URL as-is (never rewrites it — the user's
-    /// exact home page is respected); anything else falls back to the safe default.</summary>
+    /// <summary>Accepts the internal start page (default) or any absolute http(s) URL
+    /// as-is (never rewrites it — the user's exact home page is respected); anything
+    /// else falls back to the safe default.</summary>
     public static string NormalizeHomePage(string? url)
     {
+        if (UrlHelper.IsStartUrl(url)) return UrlHelper.StartUrl;
         if (Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var u)
             && (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps))
             return url!.Trim();
-        return "https://www.google.com";
+        return UrlHelper.StartUrl;
     }
 
     public static string NormalizeSearchEngine(string? id) =>
