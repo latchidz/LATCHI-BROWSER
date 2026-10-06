@@ -22,9 +22,16 @@ public class AppSettings
     /// <summary>Show the bookmarks bar by default (§25, Ctrl+Shift+B toggles).</summary>
     public bool ShowBookmarksBar { get; set; } = true;
 
-    /// <summary>First-run wizard (language choice + Google sign-in) — false until the
+    /// <summary>First-run wizard (language choice + Start Browsing) — false until the
     /// user completes it once; after that the browser opens directly.</summary>
     public bool FirstRunCompleted { get; set; } = false;
+
+    /// <summary>Reopen the tabs from the previous session on startup (lazy webviews).</summary>
+    public bool RestoreTabsOnStartup { get; set; } = true;
+
+    /// <summary>Start-page background: "" = dark (default), "#RRGGBB" = a solid color,
+    /// or "bg.<ext>" = an image file copied into the data dir.</summary>
+    public string StartPageBackground { get; set; } = "";
 
     /// <summary>LATCHI AI assistant (§54): disabled until the user provides a key in Settings.</summary>
     public bool GeminiEnabled { get; set; } = false;

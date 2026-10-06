@@ -59,7 +59,8 @@
                                 <Border Style="{StaticResource TabShape}"
                                         Margin="3,6,3,0" Padding="8,6" MinWidth="140" MaxWidth="230"
                                         MouseLeftButtonUp="OnTabClick"
-                                        MouseDown="OnTabMouseDown">
+                                        MouseDown="OnTabMouseDown"
+                                        MouseRightButtonUp="OnTabRightClick">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

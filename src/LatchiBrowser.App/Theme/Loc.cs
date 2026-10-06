@@ -3,6 +3,7 @@ namespace LatchiBrowser.App.Theme;
 /// <summary>
 /// LATCHI UI strings — Arabic + English (§77). Website language is a separate concern
 /// (§79): we never force page languages, only the app chrome speaks these.
+/// Plain, friendly wording only — no technical jargon in the UI (round 10).
 /// Unknown keys return themselves (visible in UI + covered by tests — no silent misses).
 /// </summary>
 public static class Loc
@@ -16,7 +17,6 @@ public static class Loc
         ["tabClose"]       = ("إغلاق التبويب", "Close tab"),
         ["reopenTab"]      = ("إعادة فتح التبويب المغلق (Ctrl+Shift+T)", "Reopen closed tab (Ctrl+Shift+T)"),
         ["addressHint"]    = ("ابحث أو اكتب عنوانًا", "Search or type a URL"),
-        ["startingEngine"] = ("جارٍ تشغيل محرك التصفح…", "Starting the browser engine…"),
 
         ["navBack"]    = ("رجوع", "Back"),
         ["navForward"] = ("تقدّم", "Forward"),
@@ -32,7 +32,6 @@ public static class Loc
 
         ["winMin"]     = ("تصغير", "Minimize"),
         ["winMax"]     = ("تكبير", "Maximize"),
-        ["winRestore"] = ("استعادة", "Restore"),
         ["winClose"]   = ("إغلاق", "Close"),
 
         ["menuAbout"]      = ("حول LATCHI Browser", "About LATCHI Browser"),
@@ -48,16 +47,43 @@ public static class Loc
         ["menuBar"]        = ("شريط المفضلة (Ctrl+Shift+B)", "Bookmarks bar (Ctrl+Shift+B)"),
         ["menuAi"]         = ("مساعد LATCHI AI", "LATCHI AI assistant"),
 
-        // ── profiles (§14-§20) ──
-        ["profileBtn"]            = ("الحسابات", "Accounts"),
-        ["profileAdd"]            = ("إضافة حساب", "Add account"),
-        ["profileAddNote"]        = ("يُنشأ حساب جديد بجلسات معزولة تمامًا.", "Creates a new account with fully isolated sessions."),
-        ["profileRename"]         = ("إعادة تسمية الحساب", "Rename account"),
-        ["profileSignInGoogle"]   = ("تسجيل الدخول إلى Google", "Sign in to Google"),
-        ["profileRemove"]         = ("حذف هذا الحساب", "Remove this account"),
-        ["profileRemoveConfirm"]  = ("سيُحذف هذا الحساب وتبويباته المفتوحة وسجلّه وبيانات جلساته من LATCHI.\nهل أنت متأكد؟", "This account, its open tabs, history and session data will be removed from LATCHI.\nAre you sure?"),
-        ["profileDefault"]        = ("الحساب الشخصي", "Personal"),
-        ["profileEmptySlots"]     = ("حساباتك", "Your accounts"),
+        // ── tab context menu (round 10) ──
+        ["duplicateTab"]   = ("تكرار التبويب", "Duplicate tab"),
+        ["closeOtherTabs"] = ("إغلاق التبويبات الأخرى", "Close other tabs"),
+        ["closeTabsRight"] = ("إغلاق التبويبات على اليمين", "Close tabs to the right"),
+
+        // ── profiles (§14-§20) — plain words, no technical terms ──
+        ["profileBtn"]           = ("الحسابات", "Accounts"),
+        ["profileAdd"]           = ("إضافة حساب Google", "Add Google account"),
+        ["profileAddNote"]       = ("أضف حسابًا للتنقل بسرعة بين حساباتك المختلفة.", "Add an account to quickly switch between your accounts."),
+        ["profileRename"]        = ("إعادة تسمية الحساب", "Rename account"),
+        ["profileRemove"]        = ("حذف هذا الحساب", "Remove this account"),
+        ["profileRemoveConfirm"] = ("سيُحذف هذا الحساب وتبويباته المفتوحة وسجلّه من LATCHI.\nهل أنت متأكد؟", "This account, its open tabs and history will be removed from LATCHI.\nAre you sure?"),
+        ["profileDefault"]       = ("الحساب الشخصي", "Personal"),
+
+        // ── start page (round 10) ──
+        ["startSearchHint"] = ("ابحث في Google أو اكتب عنوانًا", "Search Google or type a URL"),
+        ["quickAccess"]     = ("وصول سريع", "Quick access"),
+        ["favoritesRow"]    = ("المفضلة", "Favorites"),
+        ["recentRow"]       = ("الزيارات الأخيرة", "Recently visited"),
+        ["customizeHome"]   = ("تخصيص الصفحة", "Customize this page"),
+        ["addShortcut"]     = ("إضافة اختصار", "Add shortcut"),
+        ["editShortcut"]    = ("تعديل الاختصار", "Edit shortcut"),
+        ["removeShortcut"]  = ("حذف الاختصار", "Remove shortcut"),
+        ["shortcutName"]    = ("الاسم", "Name"),
+        ["shortcutUrl"]     = ("العنوان (URL)", "Address (URL)"),
+        ["shortcutInvalidUrl"] = ("العنوان غير صالح — اكتب مثلًا: youtube.com", "Invalid address — try for example: youtube.com"),
+
+        // ── home background (round 10) ──
+        ["bgDark"]   = ("داكن", "Dark"),
+        ["bgColor"]  = ("لون", "Color"),
+        ["bgImage"]  = ("صورة", "Image"),
+        ["bgRemove"] = ("إزالة الصورة", "Remove image"),
+        ["bgNavy"]   = ("أزرق ليلي", "Night blue"),
+        ["bgViolet"] = ("بنفسجي", "Violet"),
+        ["bgGreen"]  = ("أخضر", "Green"),
+        ["bgGray"]   = ("رمادي", "Gray"),
+        ["bgWine"]   = ("نبيذي", "Wine"),
 
         // ── bookmarks (§24/§25) ──
         ["starAdd"]           = ("إضافة إلى المفضلة (Ctrl+D)", "Add bookmark (Ctrl+D)"),
@@ -93,36 +119,47 @@ public static class Loc
         ["dlInterrupted"]    = ("انقطع", "Interrupted"),
 
         // ── extensions (§28-§34) ──
-        ["extensionsTitle"]       = ("الإضافات", "Extensions"),
-        ["extEmpty"]              = ("لا إضافات مثبّتة", "No extensions installed"),
-        ["extInstall"]            = ("تثبيت من مجلد…", "Install from folder…"),
-        ["extNote"]               = ("يدعم LATCHI الإضافات غير المعبّأة (مجلد يحوي manifest.json) عبر واجهات WebView2 الرسمية فقط. لا يوجد تثبيت من متجر Chrome حاليًا — وهذا قيد معلن لا نخفيه.", "LATCHI supports unpacked extensions (a folder containing manifest.json) via official WebView2 APIs only. Chrome Web Store installs are not supported today — an honest, stated limitation."),
-        ["extRemove"]             = ("إزالة", "Remove"),
-        ["extEnable"]             = ("تفعيل", "Enable"),
-        ["extDisable"]            = ("تعطيل", "Disable"),
-        ["extRemoveConfirm"]      = ("إزالة هذه الإضافة؟", "Remove this extension?"),
-        ["extInstallOk"]          = ("تم تثبيت الإضافة بنجاح", "Extension installed"),
-        ["extInstallFail"]        = ("فشل تثبيت الإضافة", "Extension installation failed"),
-        ["extEnabledState"]       = ("مفعّلة", "Enabled"),
-        ["extDisabledState"]      = ("معطّلة", "Disabled"),
+        ["extensionsTitle"]  = ("الإضافات", "Extensions"),
+        ["extEmpty"]         = ("لا إضافات مثبّتة", "No extensions installed"),
+        ["extInstall"]       = ("تثبيت من مجلد…", "Install from folder…"),
+        ["extNote"]          = ("تُثبَّت الإضافات من مجلد يحوي ملف manifest.json. التثبيت من متجر Chrome غير مدعوم حاليًا.", "Install extensions from a folder containing a manifest.json file. Chrome Web Store installs aren't supported yet."),
+        ["extRemove"]        = ("إزالة", "Remove"),
+        ["extEnable"]        = ("تفعيل", "Enable"),
+        ["extDisable"]       = ("تعطيل", "Disable"),
+        ["extRemoveConfirm"] = ("إزالة هذه الإضافة؟", "Remove this extension?"),
+        ["extInstallOk"]     = ("تم تثبيت الإضافة بنجاح", "Extension installed"),
+        ["extInstallFail"]   = ("فشل تثبيت الإضافة", "Extension installation failed"),
+        ["extEnabledState"]  = ("مفعّلة", "Enabled"),
+        ["extDisabledState"] = ("معطّلة", "Disabled"),
 
-        // ── settings (§51-§53) ──
-        ["settingsTitle"]     = ("الإعدادات", "Settings"),
-        ["setGeneral"]        = ("عام", "General"),
-        ["setLanguage"]       = ("لغة الواجهة (منفصلة عن لغة المواقع)", "UI language (separate from website language)"),
-        ["setHome"]           = ("صفحة البداية", "Home page"),
-        ["setSearch"]         = ("محرك البحث", "Search engine"),
-        ["setAi"]             = ("LATCHI AI — مساعد Gemini", "LATCHI AI — Gemini assistant"),
-        ["setAiEnable"]       = ("تفعيل المساعد", "Enable the assistant"),
-        ["setModel"]          = ("الموديل", "Model"),
-        ["setKey"]            = ("مفتاح API", "API key"),
-        ["setKeyPlaceholder"] = ("أدخل المفتاح ليُحفظ مشفّرًا…", "Paste the key to store it encrypted…"),
-        ["setKeyNote"]        = ("يُخزَّن المفتاح مشفّرًا على هذا الجهاز فقط (Windows DPAPI) ولا يُرسل إلا إلى Google. لا يظهر أبدًا في الإعدادات أو السجلات.", "The key is stored encrypted on this machine only (Windows DPAPI) and is sent to Google alone. It is never shown in settings or logs."),
-        ["setKeyStored"]      = ("مفتاح محفوظ — اترك الحقل فارغًا للإبقاء عليه", "A key is stored — leave the field empty to keep it"),
-        ["setKeyRemove"]      = ("حذف المفتاح المحفوظ", "Delete stored key"),
-        ["setSave"]           = ("حفظ", "Save"),
-        ["setCancel"]         = ("إلغاء", "Cancel"),
-        ["setAbout"]          = ("حول", "About"),
+        // ── settings (§51-§53 + round 10 sections) ──
+        ["settingsTitle"]  = ("الإعدادات", "Settings"),
+        ["setGeneral"]     = ("عام", "General"),
+        ["setLanguage"]    = ("لغة الواجهة (منفصلة عن لغة المواقع)", "UI language (separate from website language)"),
+        ["setHome"]        = ("صفحة البداية", "Home page"),
+        ["setSearch"]      = ("محرك البحث", "Search engine"),
+        ["setAppearance"]  = ("المظهر", "Appearance"),
+        ["setShowBar"]     = ("إظهار شريط المفضلة", "Show the bookmarks bar"),
+        ["setBg"]          = ("خلفية الصفحة الرئيسية", "Home page background"),
+        ["setTabs"]        = ("التبويبات", "Tabs"),
+        ["restoreTabs"]    = ("استعادة التبويبات المفتوحة عند بدء التشغيل", "Restore open tabs on startup"),
+        ["setPrivacy"]     = ("الخصوصية", "Privacy"),
+        ["privacyHistory"] = ("مسح سجل التصفح", "Clear browsing history"),
+        ["privacyCache"]   = ("مسح الملفات المؤقتة (الكاش)", "Clear cached files"),
+        ["privacyCookies"] = ("مسح ملفات تعريف الارتباط (Cookies)", "Clear cookies"),
+        ["privacyTitle"]   = ("الخصوصية", "Privacy"),
+        ["privacyDone"]    = ("تم المسح بنجاح", "Cleared successfully"),
+        ["privacyNeedTab"] = ("افتح أي موقع أولًا ثم أعد المحاولة.", "Open any website first, then try again."),
+        ["setAi"]          = ("LATCHI AI — مساعد Gemini", "LATCHI AI — Gemini assistant"),
+        ["setAiEnable"]    = ("تفعيل المساعد", "Enable the assistant"),
+        ["setModel"]       = ("الموديل", "Model"),
+        ["setKey"]         = ("مفتاح API", "API key"),
+        ["setKeyNote"]     = ("يُحفظ المفتاح مشفّرًا على هذا الجهاز فقط، ولا يُرسل إلا إلى Google.", "The key is stored encrypted on this device only, and is sent to Google alone."),
+        ["setKeyStored"]   = ("مفتاح محفوظ — اترك الحقل فارغًا للإبقاء عليه", "A key is stored — leave the field empty to keep it"),
+        ["setKeyRemove"]   = ("حذف المفتاح المحفوظ", "Delete stored key"),
+        ["setSave"]        = ("حفظ", "Save"),
+        ["setCancel"]      = ("إلغاء", "Cancel"),
+        ["setAbout"]       = ("حول", "About"),
 
         // ── AI sidebar (§54-§59) ──
         ["aiTitle"]      = ("LATCHI AI", "LATCHI AI"),
@@ -144,16 +181,6 @@ public static class Loc
 
         ["confirmYes"] = ("نعم", "Yes"),
         ["confirmNo"]  = ("لا", "No"),
-
-        // ── first-run wizard (user request 2026-10-06) ──
-        ["welcomeTitle"]        = ("مرحبًا بك في LATCHI Browser", "Welcome to LATCHI Browser"),
-        ["welcomeNote"]         = ("سجّل الدخول بحسابك في Google لتجهيز حسابك الخاص — بجلسة معزولة تمامًا تبقى محفوظة على جهازك.", "Sign in with your Google account to set up your own space — a fully isolated session that stays saved on this device."),
-        ["continueWithGoogle"]  = ("المتابعة باستخدام Google", "Continue with Google"),
-        ["googleSecurityNote"]  = ("يفتح التطبيق صفحة Google الرسمية للتسجيل. لا يطلب LATCHI كلمة السر ولا يراها ولا يخزّنها أبدًا.", "Opens the official Google sign-in page. LATCHI never asks for, sees or stores your password."),
-        ["googleFooterNote"]    = ("تسجيل الدخول يتم عبر accounts.google.com الرسمي · جميع الحقوق لمالكيها", "Sign-in happens on the official accounts.google.com · all rights belong to their owners"),
-        ["signedInOk"]          = ("تم تسجيل الدخول بنجاح", "Signed in successfully"),
-        ["mustSignIn"]          = ("أغلقت نافذة تسجيل الدخول قبل إكماله.\nشغّل التطبيق من جديد وسجّل دخولك بحساب Google لفتح المتصفح.", "You closed the sign-in window before finishing.\nRun the app again and sign in with your Google account to open the browser."),
-        ["startSearchHint"]     = ("ابحث في Google أو اكتب عنوانًا", "Search Google or type a URL"),
     };
 
     /// <summary>Looks up a localized string. Unknown keys return themselves (visible, testable).</summary>

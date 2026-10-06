@@ -3,80 +3,128 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using LatchiBrowser.App.Theme;
+using LatchiBrowser.Core.Services;
 
 namespace LatchiBrowser.App.Views;
 
 /// <summary>
-/// The LATCHI start page (user request 2026-10-06): a real, desktop-native home with a
-/// search box and site shortcuts — shown instead of the webview on new tabs / home.
-/// No emoji icons (§84): brand-colored letter tiles + the official Google G mark.
+/// The LATCHI start page — a real desktop browser home: search, an EDITABLE Quick
+/// Access grid (add/edit/remove shortcuts), favorites and recent rows, and a
+/// customizable background (dark / solid color / image). No web content here —
+/// the webview stays hidden while this page is shown, so it is instant and light.
 /// </summary>
 public partial class StartPageControl : UserControl
 {
-    private sealed class Tile(string label, string url, string bg, string fg, string? letter = null, bool google = false)
-    {
-        public string Label = label;
-        public string Url = url;
-        public string Bg = bg;
-        public string Fg = fg;
-        public string? Letter = letter;
-        public bool Google = google;
-    }
-
-    private static readonly Tile[] Tiles =
-    {
-        new("Google",    "https://www.google.com/",        "#FFFFFFFF", "#FF3C4043", google: true),
-        new("YouTube",   "https://www.youtube.com/",       "#FFFF0000", "#FFFFFFFF", "Y"),
-        new("Gmail",     "https://mail.google.com/",       "#FFEA4335", "#FFFFFFFF", "M"),
-        new("Maps",      "https://maps.google.com/",       "#FF34A853", "#FFFFFFFF", "M"),
-        new("Drive",     "https://drive.google.com/",      "#FF1A73E8", "#FFFFFFFF", "D"),
-        new("Translate", "https://translate.google.com/",  "#FF4285F4", "#FFFFFFFF", "T"),
-        new("Facebook",  "https://www.facebook.com/",      "#FF1877F2", "#FFFFFFFF", "f"),
-        new("Instagram", "https://www.instagram.com/",     "#FFE1306C", "#FFFFFFFF", "I"),
-        new("X",         "https://x.com/",                 "#FF0F1722", "#FFFFFFFF", "X"),
-        new("WhatsApp",  "https://web.whatsapp.com/",      "#FF25D366", "#FF10231A", "W"),
-        new("GitHub",    "https://github.com/",            "#FF233047", "#FFFFFFFF", "G"),
-        new("Wikipedia", "https://www.wikipedia.org/",     "#FFE8EDF6", "#FF101418", "W"),
-    };
-
-    /// <summary>The user asked for a search from the start page (raw text — the window resolves it).</summary>
+    /// <summary>User typed a search / address (raw text — the window resolves it).</summary>
     public event Action<string>? SearchRequested;
-
-    /// <summary>The user clicked a shortcut tile (absolute url).</summary>
+    /// <summary>User clicked a shortcut / chip (absolute url).</summary>
     public event Action<string>? NavigateRequested;
+    /// <summary>User pressed "+ Add shortcut".</summary>
+    public event Action? AddShortcutRequested;
+    /// <summary>User asked to edit an existing shortcut (id).</summary>
+    public event Action<string>? EditShortcutRequested;
+    /// <summary>Background customization (kind: "dark" | "color" | "image" | "remove").</summary>
+    public event Action<string>? CustomizeRequested;
+
+    private string _lang = "ar";
 
     public StartPageControl()
     {
         InitializeComponent();
-        BuildTiles();
     }
 
     public void ApplyLanguage(string lang)
     {
+        _lang = lang;
         SearchHint.Text = Loc.S(lang, "startSearchHint");
-        SearchBox.ToolTip = Loc.S(lang, "startSearchHint");
+        QuickAccessTitle.Text = Loc.S(lang, "quickAccess");
+        FavoritesTitle.Text = Loc.S(lang, "favoritesRow");
+        RecentTitle.Text = Loc.S(lang, "recentRow");
+        BtnCustomize.Content = Loc.S(lang, "customizeHome");
     }
 
-    private void BuildTiles()
+    /// <summary>Rebuilds Quick Access from the store (called on every change).</summary>
+    public void BindShortcuts(IReadOnlyList<ShortcutItem> shortcuts)
     {
-        foreach (var t in Tiles)
+        TilesHost.Children.Clear();
+
+        foreach (var s in shortcuts)
         {
-            var url = t.Url;
+            var url = s.Url;
+            var id = s.Id;
             var btn = new Button
             {
                 Cursor = Cursors.Hand,
                 Focusable = false,
                 Margin = new Thickness(9),
-                Content = TileContent(t),
+                MinWidth = 100,
+                MaxWidth = 118,
+                Height = 92,
+                Background = BrushFrom(s.Color),
+                Content = TileContent(s),
                 Template = TileTemplate(),
                 ToolTip = url,
             };
             btn.Click += (_, _) => NavigateRequested?.Invoke(url);
+            btn.MouseRightButtonUp += (_, e) =>
+            {
+                var menu = new ContextMenu { FontSize = 12.5 };
+                var edit = new MenuItem { Header = Loc.S(_lang, "editShortcut") };
+                edit.Click += (_, _) => EditShortcutRequested?.Invoke(id);
+                var remove = new MenuItem { Header = Loc.S(_lang, "removeShortcut") };
+                remove.Click += (_, _) => EditShortcutRequested?.Invoke("remove:" + id);
+                menu.Items.Add(edit);
+                menu.Items.Add(remove);
+                menu.PlacementTarget = btn;
+                menu.IsOpen = true;
+                e.Handled = true;
+            };
             TilesHost.Children.Add(btn);
+        }
+
+        // "+ Add shortcut" tile
+        var add = new Button
+        {
+            Cursor = Cursors.Hand,
+            Focusable = false,
+            Margin = new Thickness(9),
+            MinWidth = 100,
+            MaxWidth = 118,
+            Height = 92,
+            Background = new SolidColorBrush(Color.FromArgb(0x55, 0x11, 0x1A, 0x2E)),
+            Content = AddTileContent(),
+            Template = TileTemplate(),
+        };
+        add.Click += (_, _) => AddShortcutRequested?.Invoke();
+        TilesHost.Children.Add(add);
+    }
+
+    /// <summary>Populates the small favorites/recent chip rows (empty rows are hidden).</summary>
+    public void BindRows(IReadOnlyList<BookmarkItem> favorites, IReadOnlyList<HistoryItem> recent)
+    {
+        BindChips(FavoritesHost, FavoritesTitle, favorites.Take(8).Select(b => (b.Title, b.Url)).ToList());
+        BindChips(RecentHost, RecentTitle, recent.Take(8).Select(h => (h.Title, h.Url)).ToList());
+    }
+
+    private void BindChips(StackPanel host, TextBlock title, List<(string Title, string Url)> items)
+    {
+        host.Children.Clear();
+        title.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        host.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        foreach (var (titleText, url) in items)
+        {
+            var chip = new Button
+            {
+                Style = (Style)FindResource("BookmarkChip"),
+                Content = titleText,
+                ToolTip = url,
+            };
+            chip.Click += (_, _) => NavigateRequested?.Invoke(url);
+            host.Children.Add(chip);
         }
     }
 
-    private static object TileContent(Tile t)
+    private static object TileContent(ShortcutItem s)
     {
         var panel = new StackPanel
         {
@@ -84,9 +132,8 @@ public partial class StartPageControl : UserControl
             HorizontalAlignment = HorizontalAlignment.Center,
         };
 
-        if (t.Google)
+        if (s.Color == "google")
         {
-            // the official multicolor Google G (branding guidelines vector)
             panel.Children.Add(new Canvas
             {
                 Width = 32, Height = 32, HorizontalAlignment = HorizontalAlignment.Center,
@@ -101,24 +148,55 @@ public partial class StartPageControl : UserControl
         }
         else
         {
+            var letter = string.IsNullOrEmpty(s.Title) ? "?" : s.Title.Trim()[0].ToString().ToUpperInvariant();
             panel.Children.Add(new TextBlock
             {
-                Text = t.Letter,
+                Text = letter,
                 FontSize = 26,
                 FontWeight = FontWeights.Bold,
                 FontFamily = new FontFamily("Segoe UI"),
-                Foreground = BrushFrom(t.Fg),
+                Foreground = Brushes.White,
                 HorizontalAlignment = HorizontalAlignment.Center,
             });
         }
 
         panel.Children.Add(new TextBlock
         {
-            Text = t.Label,
+            Text = s.Title,
             FontSize = 11,
             FontWeight = FontWeights.SemiBold,
             FontFamily = new FontFamily("Segoe UI"),
-            Foreground = BrushFrom(t.Fg),
+            Foreground = Brushes.White,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 5, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 100,
+        });
+        return panel;
+    }
+
+    private object AddTileContent()
+    {
+        var panel = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "\uE710", // MDL2 "Add" — vector glyph, no emoji (§84)
+            FontFamily = new FontFamily("Segoe MDL2 Assets"),
+            FontSize = 24,
+            Foreground = (Brush)FindResource("BrushMuted"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = Loc.S(_lang, "addShortcut"),
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("BrushMuted"),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 5, 0, 0),
         });
@@ -131,11 +209,13 @@ public partial class StartPageControl : UserControl
         Data = Geometry.Parse(data),
     };
 
-    private static Brush BrushFrom(string hex) => (Brush)new BrushConverter().ConvertFromString(hex);
+    private static Brush BrushFrom(string hex) =>
+        hex == "google"
+            ? new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF))
+            : (Brush)new BrushConverter().ConvertFromString(hex);
 
     private static ControlTemplate TileTemplate()
     {
-        // plain hover/press template — the per-tile brand color is the Button's Background
         var bd = new FrameworkElementFactory(typeof(Border));
         bd.Name = "bd";
         bd.SetValue(Border.CornerRadiusProperty, new CornerRadius(16));
@@ -161,6 +241,24 @@ public partial class StartPageControl : UserControl
         template.Triggers.Add(hover);
         template.Triggers.Add(press);
         return template;
+    }
+
+    private void OnCustomizeClick(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { FontSize = 12.5 };
+        void Item(string key, string kind)
+        {
+            var mi = new MenuItem { Header = Loc.S(_lang, key) };
+            mi.Click += (_, _) => CustomizeRequested?.Invoke(kind);
+            menu.Items.Add(mi);
+        }
+        Item("bgDark", "dark");
+        Item("bgColor", "color");
+        Item("bgImage", "image");
+        Item("bgRemove", "remove");
+        menu.PlacementTarget = BtnCustomize;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
+        menu.IsOpen = true;
     }
 
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e) =>

@@ -1,11 +1,14 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 using LatchiBrowser.App.Browser;
 using LatchiBrowser.App.Theme;
@@ -17,13 +20,11 @@ using Microsoft.Web.WebView2.Wpf;
 namespace LatchiBrowser.App.Views;
 
 /// <summary>
-/// LATCHI Browser main window — rounds 1-7 combined. Custom chrome (tab strip IS the
-/// caption), real tabs, real per-profile isolation (§14-§19), bookmarks bar (§25),
-/// history (§26), tracked downloads (§27), extensions (§28), InPrivate windows (§36),
-/// zoom (§38), DevTools (§40), multi-window (§13) and the honest Gemini-backed
-/// LATCHI AI sidebar (§54-§59). Every button that exists here is wired to a real
-/// function (§107) — unbuilt features have no button yet, and deferred items are
-/// declared in README/notes (§108 — no fake PASS).
+/// LATCHI Browser main window. Rounds 1-7 + this round: instant start page (the
+/// engine warms up in the background — the UI NEVER freezes or shows engine state),
+/// session restore with LAZY tab webviews, editable Quick Access, customizable
+/// background, real tab context menu, optional Google accounts (never a gate).
+/// Every button that exists here is wired to a real function (§107).
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -38,10 +39,13 @@ public partial class MainWindow : Window
     private SettingsStore _settings = new();
     private ProfileStore _profiles = null!;
     private BookmarkStore _bookmarks = null!;
+    private ShortcutStore _shortcuts = null!;
+    private SessionStore _session = null!;
     private string _lang = "ar";
     private string _currentProfileId = "";
     private readonly bool _isPrivateWindow;                     // §36 — window-wide InPrivate
     private readonly BrowserProfile? _startProfile;             // window may be opened for a profile
+    private readonly bool _addGoogleOnStart;                    // welcome → "Add Google Account"
     private CoreWebView2Environment? _env;
     private bool _appFullscreen;        // F11 (browser fullscreen)
     private bool _contentFullscreen;    // video/website fullscreen requested by a page (§8)
@@ -60,25 +64,39 @@ public partial class MainWindow : Window
     private BookmarksWindow? _bookmarksWin;
     private ExtensionsWindow? _extensionsWin;
 
-    public MainWindow() : this(null, false) { }
+    public MainWindow() : this(null, false, false) { }
+
+    /// <summary>Opened by the welcome screen's optional "Add Google Account".</summary>
+    public MainWindow(bool addGoogleOnStart) : this(null, false, addGoogleOnStart) { }
 
     /// <summary>Opened by Ctrl+N (same profile) or Ctrl+Shift+N (InPrivate window, §36/§13).</summary>
-    public MainWindow(BrowserProfile? profile, bool inPrivate)
+    public MainWindow(BrowserProfile? profile, bool inPrivate, bool addGoogleOnStart = false)
     {
         _startProfile = profile;
         _isPrivateWindow = inPrivate;
+        _addGoogleOnStart = addGoogleOnStart;
         InitializeComponent();
         TabsControl.ItemsSource = _tabs;
         // tunneling, handled-too: keys reach us even when the WebView has focus
         AddHandler(PreviewKeyDownEvent, new KeyEventHandler(OnPreviewKey), true);
-        Closing += (_, _) => CleanupTabs();
+        Closing += (_, _) => { SaveSession(); CleanupTabs(); };
+
+        // start page wiring (search / shortcuts / customization)
+        StartPage.SearchRequested += text =>
+        {
+            if (Active is { } t) GoTo(t, UrlHelper.ResolveAddress(text, SearchEngine, Home));
+        };
+        StartPage.NavigateRequested += url => { if (Active is { } t) GoTo(t, url); };
+        StartPage.AddShortcutRequested += () => EditShortcut(null);
+        StartPage.EditShortcutRequested += idOrRemove => EditShortcut(idOrRemove);
+        StartPage.CustomizeRequested += kind => ApplyCustomization(kind);
     }
 
     private BrowserTab? Active => _activeByProfile.TryGetValue(_currentProfileId, out var t) ? t : null;
     private string Home => SettingsStore.NormalizeHomePage(_settings.Current.HomePage);
     private SearchEngines.Engine SearchEngine => SearchEngines.Resolve(_settings.Current.SearchEngineId);
 
-    /* ═════════════════ startup (§87/§88: window first, engine after) ═════════════════ */
+    /* ═════════════════ startup — the UI is INSTANT, the engine warms hidden ═════════════════ */
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -86,10 +104,18 @@ public partial class MainWindow : Window
         _lang = SettingsStore.NormalizeLanguage(_settings.Current.Language);
         _profiles = new ProfileStore(AppPaths.DataDir);
         _bookmarks = new BookmarkStore(AppPaths.DataDir);
-        var def = _profiles.EnsureDefault(Loc.S(_lang, "profileDefault"));
+        _shortcuts = new ShortcutStore(AppPaths.DataDir);
+        _session = new SessionStore(AppPaths.DataDir);
+        _profiles.EnsureDefault(Loc.S(_lang, "profileDefault"));
         BookmarkBarRow.Visibility = _settings.Current.ShowBookmarksBar ? Visibility.Visible : Visibility.Collapsed;
+
+        // everything the user can see right now — before any engine work
         ApplyLanguage();
         RebuildBookmarkBar();
+        StartPage.BindShortcuts(_shortcuts.All);
+        ApplyStartPageBackground();
+        StartPage.Visibility = Visibility.Visible;   // instant home, no freeze, no "engine" text
+        Logger.Info("window up (start page shown before engine init)");
 
         // §5: runtime check BEFORE anything — with a clear message + official installer
         if (!BrowserEngine.IsRuntimeInstalled())
@@ -101,7 +127,7 @@ public partial class MainWindow : Window
         }
         Logger.Info("WebView2 runtime " + BrowserEngine.RuntimeVersion);
 
-        // shared engine — the window is already on screen while this warms up
+        // shared engine — warms up while the user already sees and can use the home page
         try
         {
             _env = await BrowserEngine.GetEnvironmentAsync(_lang);
@@ -115,39 +141,67 @@ public partial class MainWindow : Window
             return;
         }
 
+        await RestoreOrOpenTabsAsync();
+
+        if (_addGoogleOnStart)
+            await AddProfileAsync(openGoogleSignIn: true);
+    }
+
+    /// <summary>Reopens the previous session (LAZY webviews — only the active tab
+    /// really loads) or opens one fresh start tab.</summary>
+    private async Task RestoreOrOpenTabsAsync()
+    {
+        SessionState? s = _settings.Current.RestoreTabsOnStartup ? _session.Load() : null;
+
+        if (s is not null && s.TabsByProfile.Count > 0)
+        {
+            foreach (var (pid, urls) in s.TabsByProfile)
+            {
+                if (_profiles.Find(pid) is null) continue;      // profile was removed
+                var list = new ObservableCollection<BrowserTab>();
+                _tabsByProfile[pid] = list;
+                foreach (var u in urls.Take(30))
+                {
+                    var profile = _profiles.Find(pid)!;
+                    var tab = new BrowserTab(profile, _isPrivateWindow, _lang);
+                    WireTab(tab);
+                    tab.MarkLazy(u);                             // NO webview yet — light startup
+                    list.Add(tab);
+                }
+            }
+            var activePid = _profiles.Find(s.ActiveProfileId) is not null
+                ? s.ActiveProfileId
+                : _tabsByProfile.Keys.First();
+            Logger.Info("session restored: " + _tabsByProfile.Sum(kv => kv.Value.Count) + " tabs (lazy)");
+            await SwitchToProfileAsync(activePid);
+            return;
+        }
+
         var start = _startProfile is not null && _profiles.Find(_startProfile.ProfileId) is not null
             ? _startProfile
-            : def;
+            : _profiles.All[0];
         await SwitchToProfileAsync(start.ProfileId);
-        AddressBox.Focus();
     }
 
-    /* ═════════════════ navigation entry points (one door — start-page aware) ═════════════════ */
-
-    /// <summary>Every internal navigation goes through here: leaving the start page,
-    /// real sites, searches. The engine itself stays invisible (user request: no
-    /// "starting engine" states anywhere in the UI).</summary>
-    private void GoTo(BrowserTab tab, string url)
+    private void SaveSession()
     {
-        tab.Navigate(url);                       // handles latchi://start itself
-        if (!UrlHelper.IsStartUrl(url) && tab == Active && tab.WebView is not null)
-            tab.WebView.Visibility = Visibility.Visible;
-        SyncToolbar();
+        try
+        {
+            var s = new SessionState { ActiveProfileId = _currentProfileId };
+            foreach (var (pid, list) in _tabsByProfile)
+            {
+                var urls = list
+                    .Select(t => t.IsOnStartPage ? UrlHelper.StartUrl : (t.PendingUrl ?? t.Address))
+                    .Where(u => !string.IsNullOrWhiteSpace(u) && u != "about:blank")
+                    .ToList();
+                if (urls.Count > 0) s.TabsByProfile[pid] = urls;
+            }
+            _session.Save(s);
+        }
+        catch (Exception ex) { Logger.Warn("session save failed: " + ex.Message); }
     }
 
-    private void OnStartPageSearch(string text)
-    {
-        if (Active is null) return;
-        GoTo(Active, UrlHelper.ResolveAddress(text, SearchEngine, Home));
-    }
-
-    private void OnStartPageNavigate(string url)
-    {
-        if (Active is null) return;
-        GoTo(Active, url);
-    }
-
-    /* ═════════════════ profiles (§14-§20) — real isolation, real Google login ═════════════════ */
+    /* ═════════════════ profiles (§14-§20) — optional Google, never a gate ═════════════════ */
 
     private BrowserProfile CurrentProfile =>
         _profiles.Find(_currentProfileId) ?? _profiles.All[0];
@@ -227,7 +281,7 @@ public partial class MainWindow : Window
         menu.IsOpen = true;
     }
 
-    private async Task AddProfileAsync()
+    private async Task AddProfileAsync(bool openGoogleSignIn = false)
     {
         var name = PromptWindow.Show(this, Loc.S(_lang, "profileAdd"),
             Loc.S(_lang, "profileAddNote"),
@@ -237,8 +291,8 @@ public partial class MainWindow : Window
         var p = _profiles.Add(name);
         Logger.Info("profile added: " + p.DisplayName);
         await SwitchToProfileAsync(p.ProfileId);
-        // real Google sign-in happens on the real Google page — never inside LATCHI UI (§16/§57)
-        await NewTabAsync("https://accounts.google.com/");
+        // the real Google sign-in page — LATCHI never asks for or sees any password
+        await NewTabAsync(openGoogleSignIn ? "https://accounts.google.com/" : UrlHelper.StartUrl);
     }
 
     private void RenameCurrentProfile()
@@ -256,8 +310,6 @@ public partial class MainWindow : Window
         if (MessageBox.Show(this, Loc.S(_lang, "profileRemoveConfirm"), Loc.S(_lang, "profileRemove"),
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
 
-        // close its tabs + drop its runtime state (history file we own is left on disk?
-        // no — remove it too; WebView2's own profile store stays until app-data cleanup)
         if (_tabsByProfile.TryGetValue(p.ProfileId, out var list))
         {
             foreach (var t in list) t.Dispose();
@@ -276,7 +328,6 @@ public partial class MainWindow : Window
         _profiles.Remove(p.ProfileId);
         Logger.Info("profile removed: " + p.DisplayName);
 
-        // land somewhere real: most recently used profile that still has tabs, else default
         var next = _tabsByProfile.Where(kv => kv.Value.Count > 0)
             .OrderByDescending(kv => _profiles.Find(kv.Key)?.LastUsedUtc ?? DateTime.MinValue)
             .Select(kv => kv.Key)
@@ -284,13 +335,10 @@ public partial class MainWindow : Window
         await SwitchToProfileAsync(next);
     }
 
-    /* ═════════════════ tabs (§11/§12) ═════════════════ */
+    /* ═════════════════ tabs (§11/§12 + context menu + lazy restore) ═════════════════ */
 
-    private async Task NewTabAsync(string? url = null)
+    private void WireTab(BrowserTab tab)
     {
-        if (_env is null) return; // engine not ready yet — button is honest but inert
-
-        var tab = new BrowserTab(CurrentProfile, _isPrivateWindow, _lang);
         // popup → new tab (§47). NOTE: parameter is 't' — a '_' here would capture as
         // BrowserTab inside the inner lambda and break the discard (real compiler trap).
         tab.PopupRequested += (t, uri) => Dispatcher.Invoke(() => _ = NewTabAsync(uri));
@@ -304,7 +352,14 @@ public partial class MainWindow : Window
             GetHistory(t.ProfileId).Add(title, address));   // §26 — private tabs never raise it
         tab.PropertyChanged += (s, e) => Dispatcher.Invoke(() =>
             OnTabPropertyChanged((BrowserTab)s!, e.PropertyName!));
+    }
 
+    private async Task NewTabAsync(string? url = null)
+    {
+        if (_env is null) return; // engine not ready yet — button is honest but inert
+
+        var tab = new BrowserTab(CurrentProfile, _isPrivateWindow, _lang);
+        WireTab(tab);
         _tabs.Add(tab);
         var start = url ?? Home;
         await tab.InitializeAsync(_env, start);
@@ -312,19 +367,51 @@ public partial class MainWindow : Window
         ActivateTab(tab);
     }
 
+    /// <summary>Creates the webview of a lazy (restored) tab when it becomes active.</summary>
+    private async Task EnsureTabInitializedAsync(BrowserTab tab)
+    {
+        if (tab.IsInitialized || _env is null) return;
+        try
+        {
+            var url = tab.PendingUrl ?? UrlHelper.StartUrl;
+            await tab.InitializeAsync(_env, url);
+            if (tab.WebView is not null && !ContentHost.Children.Contains(tab.WebView))
+                ContentHost.Children.Add(tab.WebView);
+            UpdateChromeForActiveTab();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("lazy tab init failed: " + ex.Message);
+        }
+    }
+
     private void ActivateTab(BrowserTab tab)
     {
         _activeByProfile[tab.ProfileId] = tab;
         tab.Touch();
         foreach (var t in _tabs) t.IsActive = t == tab;
-        // show ONLY the active tab's webview — every other tab (including other
-        // profiles' live tabs) stays alive but hidden (sessions persist, §19)
-        foreach (var child in ContentHost.Children.OfType<WebView2>())
-            child.Visibility = child == tab.WebView && !tab.IsOnStartPage
-                ? Visibility.Visible : Visibility.Collapsed;
-        // the internal start page overlays the (empty) webview area
-        StartPage.Visibility = tab.IsOnStartPage ? Visibility.Visible : Visibility.Collapsed;
+        UpdateChromeForActiveTab();
+        // lazy session-restore tab: create its webview now (async, keeps UI responsive)
+        if (!tab.IsInitialized && _env is not null)
+            _ = EnsureTabInitializedAsync(tab);
         SyncToolbar();
+    }
+
+    /// <summary>Single place that decides what covers the content area: the active
+    /// tab's webview, or the LATCHI start page (when no tab / start-page tab).</summary>
+    private void UpdateChromeForActiveTab()
+    {
+        var tab = Active;
+        var showStart = tab is null || tab.IsOnStartPage;
+        StartPage.Visibility = showStart ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var child in ContentHost.Children.OfType<WebView2>())
+            child.Visibility = !showStart && child == tab!.WebView
+                ? Visibility.Visible : Visibility.Collapsed;
+        if (showStart)
+        {
+            StartPage.BindRows(_bookmarks.All, GetHistory(_currentProfileId).All);
+            StartPage.BindShortcuts(_shortcuts.All);
+        }
     }
 
     private void CloseTab(BrowserTab tab)
@@ -333,7 +420,8 @@ public partial class MainWindow : Window
         if (idx < 0) return;
 
         // remember the address for Ctrl+Shift+T (only real pages)
-        if (Uri.TryCreate(tab.Address, UriKind.Absolute, out var u)
+        var address = tab.PendingUrl ?? tab.Address;
+        if (Uri.TryCreate(address, UriKind.Absolute, out var u)
             && (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps))
         {
             _recentlyClosed.Add(u.ToString());
@@ -358,7 +446,7 @@ public partial class MainWindow : Window
             return;
         }
         if (Active == null) ActivateTab(_tabs[Math.Min(idx, _tabs.Count - 1)]);
-        else if (Active.WebView is not null) Active.WebView.Visibility = Visibility.Visible;
+        else UpdateChromeForActiveTab();
     }
 
     private void ReopenClosedTab()
@@ -381,6 +469,64 @@ public partial class MainWindow : Window
         foreach (var list in _tabsByProfile.Values)
             foreach (var t in list) t.Dispose();
         _tabsByProfile.Clear();
+    }
+
+    // ── tab context menu: duplicate / close / close others / close right / reopen ──
+
+    private void OnTabRightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: BrowserTab t }) return;
+        e.Handled = true;
+
+        var menu = new ContextMenu { FontSize = 12.5 };
+        var idx = _tabs.IndexOf(t);
+
+        var dup = new MenuItem { Header = Loc.S(_lang, "duplicateTab") };
+        dup.Click += async (_, _) =>
+            await NewTabAsync(t.IsOnStartPage ? null : (t.PendingUrl ?? t.Address));
+        menu.Items.Add(dup);
+
+        var reopen = new MenuItem
+        {
+            Header = Loc.S(_lang, "reopenTab"),
+            IsEnabled = _recentlyClosed.Count > 0,
+        };
+        reopen.Click += (_, _) => ReopenClosedTab();
+        menu.Items.Add(reopen);
+
+        menu.Items.Add(new Separator());
+
+        var close = new MenuItem { Header = Loc.S(_lang, "tabClose") };
+        close.Click += (_, _) => CloseTab(t);
+        menu.Items.Add(close);
+
+        var others = new MenuItem
+        {
+            Header = Loc.S(_lang, "closeOtherTabs"),
+            IsEnabled = _tabs.Count > 1,
+        };
+        others.Click += (_, _) =>
+        {
+            foreach (var x in _tabs.Where(x => x != t).ToList()) CloseTab(x);
+            ActivateTab(t);
+        };
+        menu.Items.Add(others);
+
+        var right = new MenuItem
+        {
+            Header = Loc.S(_lang, "closeTabsRight"),
+            IsEnabled = idx >= 0 && idx < _tabs.Count - 1,
+        };
+        right.Click += (_, _) =>
+        {
+            for (var i = _tabs.Count - 1; i > idx; i--) CloseTab(_tabs[i]);
+            ActivateTab(t);
+        };
+        menu.Items.Add(right);
+
+        menu.PlacementTarget = (UIElement)sender;
+        menu.Placement = PlacementMode.MousePoint;
+        menu.IsOpen = true;
     }
 
     /* ═════════════════ toolbar ↔ active tab ═════════════════ */
@@ -430,8 +576,8 @@ public partial class MainWindow : Window
         var secure = Active.Address.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
         LockGlyph.Text = secure ? "\uE72E" : "\uE7BA";
         LockGlyph.Foreground = secure
-            ? (System.Windows.Media.Brush)FindResource("BrushMuted")
-            : (System.Windows.Media.Brush)FindResource("BrushDanger");
+            ? (Brush)FindResource("BrushMuted")
+            : (Brush)FindResource("BrushDanger");
     }
 
     private void SyncStar()
@@ -441,13 +587,32 @@ public partial class MainWindow : Window
         BtnStar.ToolTip = Loc.S(_lang, bookmarked ? "starRemove" : "starAdd");
     }
 
-    /* ═════════════════ navigation (§22) ═════════════════ */
+    /* ═════════════════ navigation (§22) — one door, start-page aware ═════════════════ */
+
+    private void GoTo(BrowserTab tab, string url)
+    {
+        tab.Navigate(url);                       // handles latchi://start itself
+        UpdateChromeForActiveTab();
+        SyncToolbar();
+    }
+
+    private void OnStartPageSearch(string text)
+    {
+        if (Active is null) return;
+        GoTo(Active, UrlHelper.ResolveAddress(text, SearchEngine, Home));
+    }
+
+    private void OnStartPageNavigate(string url)
+    {
+        if (Active is null) return;
+        GoTo(Active, url);
+    }
 
     private void OnAddressKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter) return;
         _addressHintOn = false;
-        AddressBox.Foreground = (System.Windows.Media.Brush)FindResource("BrushText");
+        AddressBox.Foreground = (Brush)FindResource("BrushText");
         var resolved = UrlHelper.ResolveAddress(AddressBox.Text, SearchEngine, Home);
         if (Active is not null)
         {
@@ -468,7 +633,7 @@ public partial class MainWindow : Window
         if (AddressBox.IsKeyboardFocused) return;
         _addressHintOn = true;
         AddressBox.Text = text;
-        AddressBox.Foreground = (System.Windows.Media.Brush)FindResource("BrushMuted");
+        AddressBox.Foreground = (Brush)FindResource("BrushMuted");
     }
 
     private void ClearAddressHint()
@@ -476,7 +641,7 @@ public partial class MainWindow : Window
         if (!_addressHintOn) return;
         _addressHintOn = false;
         AddressBox.Text = "";
-        AddressBox.Foreground = (System.Windows.Media.Brush)FindResource("BrushText");
+        AddressBox.Foreground = (Brush)FindResource("BrushText");
     }
 
     /* ═════════════════ bookmarks (§24/§25) ═════════════════ */
@@ -502,12 +667,12 @@ public partial class MainWindow : Window
 
         if (_bookmarks.All.Count == 0)
         {
-            BookmarkBarHost.Children.Add(new System.Windows.Controls.TextBlock
+            BookmarkBarHost.Children.Add(new TextBlock
             {
                 Text = Loc.S(_lang, "bookmarksBarEmpty"),
                 Style = (Style)FindResource("BodyText"),
                 FontSize = 11.5,
-                Foreground = (System.Windows.Media.Brush)FindResource("BrushMuted"),
+                Foreground = (Brush)FindResource("BrushMuted"),
                 VerticalAlignment = VerticalAlignment.Center,
             });
             return;
@@ -530,8 +695,7 @@ public partial class MainWindow : Window
             miRemove.Click += (_, _) => { _bookmarks.Remove(url); RebuildBookmarkBar(); SyncStar(); };
             chip.ContextMenu.Items.Add(miOpen);
             chip.ContextMenu.Items.Add(miRemove);
-            // right-click opens the context menu (WPF Button doesn't do it by itself)
-            chip.MouseRightButtonUp += (_, e) => { chip.ContextMenu.PlacementTarget = chip; chip.ContextMenu.IsOpen = true; e.Handled = true; };
+            chip.MouseRightButtonUp += (_, e2) => { chip.ContextMenu.PlacementTarget = chip; chip.ContextMenu.IsOpen = true; e2.Handled = true; };
             BookmarkBarHost.Children.Add(chip);
         }
     }
@@ -542,6 +706,132 @@ public partial class MainWindow : Window
         BookmarkBarRow.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         _settings.Current.ShowBookmarksBar = visible;
         _settings.Save();
+    }
+
+    /* ═════════════════ start page: editable shortcuts + background ═════════════════ */
+
+    private void EditShortcut(string? idOrRemove)
+    {
+        if (idOrRemove is not null && idOrRemove.StartsWith("remove:"))
+        {
+            _shortcuts.Remove(idOrRemove["remove:".Length..]);
+            StartPage.BindShortcuts(_shortcuts.All);
+            return;
+        }
+        var existing = idOrRemove is null
+            ? null
+            : _shortcuts.All.FirstOrDefault(s => s.Id == idOrRemove);
+        var res = ShortcutWindow.Show(this,
+            existing is null ? Loc.S(_lang, "addShortcut") : Loc.S(_lang, "editShortcut"),
+            existing?.Title ?? "", existing?.Url ?? "https://", _lang);
+        if (res is null) return;
+        if (existing is null) _shortcuts.Add(res.Value.Name, res.Value.Url);
+        else _shortcuts.Update(existing.Id, res.Value.Name, res.Value.Url);
+        StartPage.BindShortcuts(_shortcuts.All);
+    }
+
+    /// <summary>From the start page's customize menu: dark/color/image/remove.</summary>
+    private void ApplyCustomization(string kind) => ApplyBackground(kind);
+
+    /// <summary>From Settings (color swatches send '#…' directly).</summary>
+    private void ApplyCustomizeFromSettings(string kind) => ApplyBackground(kind);
+
+    private void ApplyBackground(string kind)
+    {
+        if (kind.StartsWith('#'))
+        {
+            _settings.Current.StartPageBackground = kind;
+            _settings.Save();
+            ApplyStartPageBackground();
+            return;
+        }
+        switch (kind)
+        {
+            case "dark":
+            case "remove":
+                _settings.Current.StartPageBackground = "";
+                _settings.Save();
+                ApplyStartPageBackground();
+                break;
+
+            case "color":
+                var menu = new ContextMenu { FontSize = 12.5 };
+                foreach (var (name, hex) in new[]
+                {
+                    (Loc.S(_lang, "bgNavy"), "#FF0B1E3D"),
+                    (Loc.S(_lang, "bgViolet"), "#FF2A1B3D"),
+                    (Loc.S(_lang, "bgGreen"), "#FF0F2B22"),
+                    (Loc.S(_lang, "bgGray"), "#FF20242B"),
+                    (Loc.S(_lang, "bgWine"), "#FF331422"),
+                })
+                {
+                    var hexCopy = hex;
+                    var mi = new MenuItem { Header = name };
+                    mi.Click += (_, _) =>
+                    {
+                        _settings.Current.StartPageBackground = hexCopy;
+                        _settings.Save();
+                        ApplyStartPageBackground();
+                    };
+                    menu.Items.Add(mi);
+                }
+                menu.PlacementTarget = StartPage;
+                menu.Placement = PlacementMode.MousePoint;
+                menu.IsOpen = true;
+                break;
+
+            case "image":
+                var dlg = new Microsoft.Win32.OpenFileDialog
+                {
+                    Title = Loc.S(_lang, "bgImage"),
+                    Filter = "Images (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp",
+                };
+                if (dlg.ShowDialog(this) != true) return;
+                try
+                {
+                    // copy into the data dir — light, self-contained, survives restarts
+                    var ext = Path.GetExtension(dlg.FileName).ToLowerInvariant();
+                    if (ext == ".jpeg") ext = ".jpg";
+                    var dest = Path.Combine(AppPaths.DataDir, "startpage-bg" + ext);
+                    foreach (var old in Directory.GetFiles(AppPaths.DataDir, "startpage-bg.*"))
+                        File.Delete(old);
+                    File.Copy(dlg.FileName, dest, overwrite: true);
+                    _settings.Current.StartPageBackground = "startpage-bg" + ext;
+                    _settings.Save();
+                    ApplyStartPageBackground();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, ex.Message, Loc.S(_lang, "appName"));
+                }
+                break;
+        }
+    }
+
+    private void ApplyStartPageBackground()
+    {
+        var bg = _settings.Current.StartPageBackground;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(bg) || bg == "dark")
+                StartPage.Background = (Brush)FindResource("BrushContentBg");
+            else if (bg.StartsWith('#'))
+                StartPage.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bg));
+            else
+            {
+                var path = Path.Combine(AppPaths.DataDir, bg);
+                if (File.Exists(path))
+                {
+                    var img = new BitmapImage(new Uri(path));
+                    StartPage.Background = new ImageBrush(img) { Stretch = Stretch.UniformToFill };
+                }
+                else StartPage.Background = (Brush)FindResource("BrushContentBg");
+            }
+        }
+        catch
+        {
+            StartPage.Background = (Brush)FindResource("BrushContentBg");
+        }
     }
 
     /* ═════════════════ LATCHI AI sidebar (§54-§59) — honest, never fake ═════════════════ */
@@ -580,27 +870,26 @@ public partial class MainWindow : Window
         };
         if (role == "user")
         {
-            border.Background = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromArgb(0x4D, 0xE3, 0xB3, 0x41)); // translucent gold
+            border.Background = new SolidColorBrush(Color.FromArgb(0x4D, 0xE3, 0xB3, 0x41)); // translucent gold
         }
         else if (role == "assistant")
         {
-            border.Background = (System.Windows.Media.Brush)FindResource("BrushField");
-            border.BorderBrush = (System.Windows.Media.Brush)FindResource("BrushBorder");
+            border.Background = (Brush)FindResource("BrushField");
+            border.BorderBrush = (Brush)FindResource("BrushBorder");
             border.BorderThickness = new Thickness(1);
         }
         else // system / error
         {
-            border.Background = (System.Windows.Media.Brush)FindResource("BrushHover");
+            border.Background = (Brush)FindResource("BrushHover");
         }
 
-        var tb = new System.Windows.Controls.TextBlock
+        var tb = new TextBlock
         {
             Text = text,
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12.5,
-            FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
-            Foreground = (System.Windows.Media.Brush)FindResource("BrushText"),
+            FontFamily = new FontFamily("Segoe UI"),
+            Foreground = (Brush)FindResource("BrushText"),
             LineHeight = 19,
         };
         border.Child = tb;
@@ -708,7 +997,32 @@ public partial class MainWindow : Window
             }
     }
 
-    /* ═════════════════ child windows: downloads/history/bookmarks/extensions/settings ═════════════════ */
+    /* ═════════════════ privacy: real clearing via WebView2 ═════════════════ */
+
+    private async Task ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds kinds, string whatLabel)
+    {
+        var profile = Active?.Core?.Profile;
+        if (profile is null)
+        {
+            MessageBox.Show(this, Loc.S(_lang, "privacyNeedTab"), Loc.S(_lang, "privacyTitle"),
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        try
+        {
+            await profile.ClearBrowsingDataAsync(kinds);
+            Logger.Info("cleared: " + whatLabel);
+            MessageBox.Show(this, Loc.S(_lang, "privacyDone"), Loc.S(_lang, "privacyTitle"),
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, Loc.S(_lang, "privacyTitle"),
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /* ═════════════════ child windows ═════════════════ */
 
     private void OnDownloadsClick(object sender, RoutedEventArgs e) => ShowDownloads();
 
@@ -761,8 +1075,25 @@ public partial class MainWindow : Window
 
     private void ShowSettings()
     {
-        var w = new SettingsWindow(this, _settings, OnSettingsSaved, _lang) { Owner = this };
+        var w = new SettingsWindow(this, _settings, OnSettingsSaved, _lang,
+            ApplyCustomizeFromSettings,
+            () => _ = ClearBrowsingDataAsync(
+                CoreWebView2BrowsingDataKinds.DiskCache | CoreWebView2BrowsingDataKinds.CacheStorage,
+                "cache"),
+            () => _ = ClearBrowsingDataAsync(
+                CoreWebView2BrowsingDataKinds.Cookies | CoreWebView2BrowsingDataKinds.AllDomStorage,
+                "cookies"),
+            ClearHistoryNow)
+        { Owner = this };
         w.ShowDialog();
+    }
+
+    private void ClearHistoryNow()
+    {
+        GetHistory(_currentProfileId).ClearAll();
+        UpdateChromeForActiveTab(); // start page's "recently visited" refreshes
+        MessageBox.Show(this, Loc.S(_lang, "privacyDone"), Loc.S(_lang, "privacyTitle"),
+            MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void OnSettingsSaved()
@@ -771,11 +1102,11 @@ public partial class MainWindow : Window
         var langChanged = newLang != _lang;
         _lang = newLang;
         ApplyLanguage();
-        if (langChanged)
-        {
-            RebuildBookmarkBar();
-            AiModel.Text = _settings.Current.GeminiModel;
-        }
+        RebuildBookmarkBar();
+        ApplyStartPageBackground();
+        StartPage.BindShortcuts(_shortcuts.All);
+        UpdateChromeForActiveTab();
+        if (langChanged) AiModel.Text = _settings.Current.GeminiModel;
         SyncStar();
         Logger.Info("settings saved");
     }
@@ -797,6 +1128,7 @@ public partial class MainWindow : Window
         if (Active is null) return;
         GoTo(Active, Home);   // Home may be the internal start page — GoTo handles it
     }
+
     private async void OnNewTabClick(object sender, RoutedEventArgs e) => await NewTabAsync();
 
     private void OnTabClick(object sender, MouseButtonEventArgs e)
@@ -893,10 +1225,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /* ═════════════════ fullscreen — three distinct cases (§8) ═════════════════
-       browser fullscreen (F11): chrome hidden, borderless, maximized
-       content fullscreen (video/website): borderless, chrome hidden — driven by the page
-       window maximize: normal OS maximize, chrome stays                                   */
+    /* ═════════════════ fullscreen — three distinct cases (§8) ═════════════════ */
 
     private void OnToggleFullscreenClick(object sender, RoutedEventArgs e) => ToggleAppFullscreen();
 
@@ -942,7 +1271,7 @@ public partial class MainWindow : Window
         if (_stateBeforeFullscreen == WindowState.Normal) WindowState = WindowState.Normal;
     }
 
-    /* ═════════════════ keyboard (§11 + rounds 2-7 shortcuts) ═════════════════ */
+    /* ═════════════════ keyboard (§11 + all shortcuts) ═════════════════ */
 
     private void OnPreviewKey(object sender, KeyEventArgs e)
     {
@@ -962,7 +1291,6 @@ public partial class MainWindow : Window
         if (e.Key == Key.F5) { if (Active is { IsOnStartPage: false }) Active.Reload(); e.Handled = true; return; }
         if (alt && e.Key == Key.Left) { Active?.GoBack(); e.Handled = true; return; }
         if (alt && e.Key == Key.Right) { Active?.GoForward(); e.Handled = true; return; }
-        // rounds 2-7
         if (ctrl && shift && e.Key == Key.B) { ToggleBookmarksBar(); e.Handled = true; return; }
         if (ctrl && e.Key == Key.D && !shift) { ToggleBookmark(); e.Handled = true; return; }
         if (ctrl && e.Key == Key.H && !shift) { ShowHistory(); e.Handled = true; return; }
@@ -985,6 +1313,9 @@ public partial class MainWindow : Window
         _settings.Save();
         ApplyLanguage();
         RebuildBookmarkBar();
+        StartPage.ApplyLanguage(_lang);
+        StartPage.BindShortcuts(_shortcuts.All);
+        UpdateChromeForActiveTab();
         Logger.Info("UI language → " + _lang);
     }
 
@@ -1008,10 +1339,9 @@ public partial class MainWindow : Window
         AiModel.Text = _settings?.Current.GeminiModel ?? Gemini.DefaultModel;
         AiInput.ToolTip = Loc.S(_lang, "aiInputHint");
         BtnAiSend.ToolTip = Loc.S(_lang, "aiSend");
-        UpdateReloadStop();
         StartPage.ApplyLanguage(_lang);
-        // the engine stays invisible (user request): no "starting" state is ever shown —
-        // the first tab simply appears on the start page when everything is ready
+        UpdateReloadStop();
+        // the engine stays invisible (user request): no "starting" state is ever shown
         if (!AddressBox.IsKeyboardFocused) ShowAddressHint(Loc.S(_lang, "addressHint"));
     }
 

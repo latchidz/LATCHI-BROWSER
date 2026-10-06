@@ -65,58 +65,42 @@ public partial class App : Application
         _ => key,
     };
 
-    /// <summary>Startup flow: first run → language choice → real Google sign-in →
-    /// browser; afterwards → browser directly (persisted sessions, §19).</summary>
+    /// <summary>Startup flow: first run → ONE welcome screen (language + Start
+    /// Browsing) → browser. Google sign-in is optional and lives INSIDE the browser.
+    /// Afterwards → browser directly (persisted sessions, §19).</summary>
     private void RunStartup()
     {
         var settings = new SettingsStore();
 
         if (!settings.Current.FirstRunCompleted)
         {
-            // CRITICAL: during the wizard no window may exist for a moment (between
-            // closing one step and opening the next). With OnLastWindowClose the app
-            // would START SHUTTING DOWN the instant the language window closes —
-            // which made the Google window self-close and the app exit (the exact
-            // loop the user hit in v1.1.0). Explicit mode until the browser is up.
+            // CRITICAL: while the wizard window closes and before the browser opens
+            // there is a moment with zero windows. With OnLastWindowClose the app
+            // would start shutting down right there (the v1.1.0 loop). Explicit mode
+            // until the browser window is up.
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
-            // 1) professional language gate — the very first thing, ever
-            var lang = LanguageWindow.Ask();
-            if (lang is null) { Shutdown(); return; }
+            var welcome = LanguageWindow.Ask();
+            if (welcome is null) { Shutdown(); return; }
+            var (lang, addGoogle) = welcome.Value;
             settings.Current.Language = lang;
-            settings.Save();
-
-            // the default profile must exist BEFORE the sign-in window so both the
-            // sign-in webview and the browser share the same isolated session
-            var profiles = new ProfileStore(AppPaths.DataDir);
-            var profile = profiles.EnsureDefault(
-                LatchiBrowser.App.Theme.Loc.S(lang, "profileDefault"));
-
-            // 2) mandatory real Google sign-in, then the browser opens
-            var signIn = new GoogleSignInWindow(lang, profile);
-            if (signIn.ShowDialog() != true)
-            {
-                MessageBox.Show(
-                    Theme.Loc.S(lang, "mustSignIn"),
-                    Theme.Loc.S(lang, "appName"),
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                Shutdown();
-                return;
-            }
-            profiles.Touch(profile.ProfileId);
             settings.Current.FirstRunCompleted = true;
             settings.Save();
-            Logger.Info("first-run wizard completed");
+            Logger.Info("first-run welcome completed");
+
+            ShutdownMode = ShutdownMode.OnLastWindowClose;
+            var mw = new MainWindow(addGoogleOnStart: addGoogle);
+            MainWindow = mw;
+            mw.Show();
+            mw.Activate();
+            return;
         }
 
-        // wizard done (or skipped) — restore normal browser behavior: closing the
-        // last browser window closes the app
-        ShutdownMode = ShutdownMode.OnLastWindowClose;
-
-        // 3) the browser itself — any construction failure is visible, never silent
-        var mw = new MainWindow();
-        MainWindow = mw;
-        mw.Show();
+        // normal start — the browser window itself
+        var mw2 = new MainWindow();
+        MainWindow = mw2;
+        mw2.Show();
+        mw2.Activate();
     }
 
     protected override void OnExit(ExitEventArgs e)

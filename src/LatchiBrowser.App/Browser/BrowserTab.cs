@@ -44,6 +44,22 @@ public sealed class BrowserTab : IDisposable, INotifyPropertyChanged
     /// <summary>True while this tab shows the internal LATCHI start page (no webview
     /// navigation happens; the window overlays its own WPF start page).</summary>
     public bool IsOnStartPage { get => _isOnStartPage; private set => Set(ref _isOnStartPage, value); }
+
+    /// <summary>Session-restore lazy tabs: the url to open when this tab is actually
+    /// activated. No webview exists until then (light startup on weak machines).</summary>
+    public string? PendingUrl { get; private set; }
+
+    /// <summary>True once the WebView2 control exists.</summary>
+    public bool IsInitialized => WebView is not null;
+
+    /// <summary>Creates a LAZY tab (session restore): shows url/title immediately,
+    /// the webview is only created when the tab becomes active.</summary>
+    public void MarkLazy(string url)
+    {
+        PendingUrl = url;
+        if (UrlHelper.IsStartUrl(url)) { IsOnStartPage = true; Address = UrlHelper.StartUrl; }
+        else Address = url;
+    }
     public DateTime LastUsedUtc { get => _lastUsedUtc; private set => Set(ref _lastUsedUtc, value); }
 
     // ── live state ──────────────────────────────────────────────────────
@@ -51,7 +67,7 @@ public sealed class BrowserTab : IDisposable, INotifyPropertyChanged
     public CoreWebView2? Core => WebView?.CoreWebView2;
 
     public string Title { get => _title; private set => Set(ref _title, value); }
-    public string Address { get => _address; private set => Set(ref _address, value); }
+    public string Address { get => _address; internal set => Set(ref _address, value); }
     public string? FaviconUrl { get => _faviconUrl; private set => Set(ref _faviconUrl, value); }
     public bool IsLoading { get => _isLoading; private set => Set(ref _isLoading, value); }
     public bool CanGoBack { get => _canGoBack; private set => Set(ref _canGoBack, value); }
@@ -84,6 +100,7 @@ public sealed class BrowserTab : IDisposable, INotifyPropertyChanged
     public async Task InitializeAsync(CoreWebView2Environment environment, string startUrl)
     {
         if (WebView is not null) return;
+        PendingUrl = null;
         var wv = new WebView2
         {
             CreationProperties = new CoreWebView2CreationProperties

@@ -8,7 +8,7 @@
 #define MyAppName "LATCHI Browser"
 #define MyAppExeName "LATCHI-BROWSER.exe"
 #ifndef MyAppVersion
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.2.0"
 #endif
 
 [Setup]

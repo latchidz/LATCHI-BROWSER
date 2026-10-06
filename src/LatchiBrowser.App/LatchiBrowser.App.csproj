@@ -17,8 +17,8 @@
     <AssemblyName>LATCHI-BROWSER</AssemblyName>
     <RootNamespace>LatchiBrowser.App</RootNamespace>
     <ApplicationIcon>..\..\assets\appicon.ico</ApplicationIcon>
-    <Version>1.1.1</Version>
-    <InformationalVersion>1.1.1</InformationalVersion>
+    <Version>1.2.0</Version>
+    <InformationalVersion>1.2.0</InformationalVersion>
     <Product>LATCHI Browser</Product>
     <Company>LATCHI</Company>
     <Authors>LATCHI</Authors>

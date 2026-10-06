@@ -1,0 +1,24 @@
+<Window x:Class="LatchiBrowser.App.Views.ShortcutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="LATCHI"
+        Width="440" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BrushWindow}"
+        FlowDirection="RightToLeft">
+
+    <StackPanel Margin="20">
+        <TextBlock x:Name="WinTitle" Style="{StaticResource SectionHeader}" Margin="0,0,0,4"/>
+        <TextBlock x:Name="LblName" Style="{StaticResource FieldLabel}"/>
+        <TextBox x:Name="NameBox" Style="{StaticResource FieldBox}"/>
+        <TextBlock x:Name="LblUrl" Style="{StaticResource FieldLabel}"/>
+        <TextBox x:Name="UrlBox" Style="{StaticResource FieldBox}" FlowDirection="LeftToRight"/>
+        <TextBlock x:Name="UrlError" Style="{StaticResource BodyText}" FontSize="11" Margin="0,8,0,0"
+                   Foreground="{StaticResource BrushDanger}" Visibility="Collapsed"/>
+        <StackPanel Orientation="Horizontal" Margin="0,18,0,0" HorizontalAlignment="Left">
+            <Button x:Name="BtnSave" Style="{StaticResource PrimaryBtn}" Click="OnSaveClick"/>
+            <Button x:Name="BtnCancel" Style="{StaticResource SecondaryBtn}" Margin="10,0,0,0" Click="OnCancelClick"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
