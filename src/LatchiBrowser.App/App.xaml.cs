@@ -58,7 +58,6 @@ public partial class App : Application
         }
     }
 
-
     private static string Loc_Safe(string key) => key switch
     {
         "unexpectedError" => "An unexpected error occurred",
@@ -74,6 +73,13 @@ public partial class App : Application
 
         if (!settings.Current.FirstRunCompleted)
         {
+            // CRITICAL: during the wizard no window may exist for a moment (between
+            // closing one step and opening the next). With OnLastWindowClose the app
+            // would START SHUTTING DOWN the instant the language window closes —
+            // which made the Google window self-close and the app exit (the exact
+            // loop the user hit in v1.1.0). Explicit mode until the browser is up.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
             // 1) professional language gate — the very first thing, ever
             var lang = LanguageWindow.Ask();
             if (lang is null) { Shutdown(); return; }
@@ -102,6 +108,10 @@ public partial class App : Application
             settings.Save();
             Logger.Info("first-run wizard completed");
         }
+
+        // wizard done (or skipped) — restore normal browser behavior: closing the
+        // last browser window closes the app
+        ShutdownMode = ShutdownMode.OnLastWindowClose;
 
         // 3) the browser itself — any construction failure is visible, never silent
         var mw = new MainWindow();

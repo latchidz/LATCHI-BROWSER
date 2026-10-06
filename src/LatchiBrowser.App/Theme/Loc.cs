@@ -152,7 +152,7 @@ public static class Loc
         ["googleSecurityNote"]  = ("يفتح التطبيق صفحة Google الرسمية للتسجيل. لا يطلب LATCHI كلمة السر ولا يراها ولا يخزّنها أبدًا.", "Opens the official Google sign-in page. LATCHI never asks for, sees or stores your password."),
         ["googleFooterNote"]    = ("تسجيل الدخول يتم عبر accounts.google.com الرسمي · جميع الحقوق لمالكيها", "Sign-in happens on the official accounts.google.com · all rights belong to their owners"),
         ["signedInOk"]          = ("تم تسجيل الدخول بنجاح", "Signed in successfully"),
-        ["mustSignIn"]          = ("يلزم تسجيل الدخول بحساب Google لبدء استخدام LATCHI Browser. شغّل التطبيق مرة أخرى للتسجيل.", "Signing in with a Google account is required to start LATCHI Browser. Run the app again to sign in."),
+        ["mustSignIn"]          = ("أغلقت نافذة تسجيل الدخول قبل إكماله.\nشغّل التطبيق من جديد وسجّل دخولك بحساب Google لفتح المتصفح.", "You closed the sign-in window before finishing.\nRun the app again and sign in with your Google account to open the browser."),
         ["startSearchHint"]     = ("ابحث في Google أو اكتب عنوانًا", "Search Google or type a URL"),
     };
 
