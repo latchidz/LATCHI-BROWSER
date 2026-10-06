@@ -1,0 +1,47 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build (Release)
+        run: dotnet build -c Release
+
+      - name: Unit tests
+        run: dotnet test -c Release --no-build --logger "console;verbosity=normal"
+
+      - name: Publish (win-x64, self-contained, ReadyToRun)
+        run: >
+          dotnet publish src/LatchiBrowser.App/LatchiBrowser.App.csproj
+          -c Release -r win-x64 --self-contained true -p:ReadyToRun=true
+          -p:PublishSingleFile=false -o publish
+
+      - name: Resolve version from csproj (the ONE source of truth)
+        shell: pwsh
+        run: |
+          $v = (Select-Xml -Path src/LatchiBrowser.App/LatchiBrowser.App.csproj -XPath '//Version').Node.InnerText
+          Write-Host "app version: $v"
+          "APP_VERSION=$v" >> $env:GITHUB_ENV
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: LATCHI-BROWSER-${{ env.APP_VERSION }}-win-x64
+          path: publish

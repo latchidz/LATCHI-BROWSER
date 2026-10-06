@@ -1,0 +1,8 @@
+## LATCHI BROWSER
+bin/
+obj/
+publish/
+*.user
+.vs/
+*.suo
+TestResults/

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>LatchiBrowser.Core</RootNamespace>
+    <Description>Pure browser logic for LATCHI Browser — settings, navigation resolution, search engines. No UI, runs on any OS, fully unit-tested.</Description>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!-- Allows compile validation on non-Windows dev boxes; the real build always
+         runs on windows-latest in GitHub Actions (§99 Release x64). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>LATCHI-BROWSER</AssemblyName>
+    <RootNamespace>LatchiBrowser.App</RootNamespace>
+    <ApplicationIcon>..\..\assets\appicon.ico</ApplicationIcon>
+    <Version>0.1.0</Version>
+    <InformationalVersion>0.1.0</InformationalVersion>
+    <Product>LATCHI Browser</Product>
+    <Company>LATCHI</Company>
+    <Authors>LATCHI</Authors>
+    <Description>Lightweight professional Windows browser (WebView2/Chromium) with multi Google profiles, extensions, downloads, bookmarks, history and a Gemini AI assistant.</Description>
+    <Copyright>© 2026 LATCHI</Copyright>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LatchiBrowser.Core\LatchiBrowser.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- window/taskbar icon resource -->
+    <Resource Include="..\..\assets\appicon.ico" Link="assets\appicon.ico" />
+  </ItemGroup>
+
+</Project>
