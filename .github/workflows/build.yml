@@ -6,8 +6,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+# write is needed ONLY for the tag-triggered release steps (create Release + upload
+# assets); pushes to main use read-only paths anyway
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows-x64:
