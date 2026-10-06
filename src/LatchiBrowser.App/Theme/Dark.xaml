@@ -88,4 +88,185 @@
         <Setter Property="Padding" Value="6,0"/>
     </Style>
 
+    <!-- ═══════════════ rounds 2-7 shared styles ═══════════════ -->
+
+    <!-- primary (gold) button: Save / Install / Send -->
+    <Style x:Key="PrimaryBtn" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource BrushAccent}"/>
+        <Setter Property="Foreground" Value="#FF141414"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="Padding" Value="16,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource BrushAccentDim}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.8"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- secondary (outline) button -->
+    <Style x:Key="SecondaryBtn" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="Padding" Value="14,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}"
+                            BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" CornerRadius="6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource BrushHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource BrushAccent}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource BrushMuted}"/>
+                            <Setter Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- text "link-style" button used inside list rows -->
+    <Style x:Key="LinkBtn" TargetType="Button" BasedOn="{StaticResource SecondaryBtn}">
+        <Setter Property="Height" Value="26"/>
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="FontSize" Value="11.5"/>
+    </Style>
+
+    <!-- bookmark chip on the bookmarks bar -->
+    <Style x:Key="BookmarkChip" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Height" Value="26"/>
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="Margin" Value="0,0,6,0"/>
+        <Setter Property="MaxWidth" Value="170"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="13">
+                        <TextBlock Text="{TemplateBinding Content}" TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource BrushHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource BrushTabActive}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- one selectable row in History/Bookmarks/Downloads/Extensions lists -->
+    <Style x:Key="ListRow" TargetType="Border">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="#16FFFFFF"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource BrushHover}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- dark input box for dialogs -->
+    <Style x:Key="FieldBox" TargetType="TextBox">
+        <Setter Property="Background" Value="{StaticResource BrushField}"/>
+        <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+        <Setter Property="CaretBrush" Value="{StaticResource BrushAccent}"/>
+        <Setter Property="SelectionBrush" Value="#66E3B341"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="Padding" Value="8,6"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <!-- settings section header -->
+    <Style x:Key="SectionHeader" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource BrushAccent}"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="Margin" Value="0,16,0,8"/>
+    </Style>
+
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource BrushMuted}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="Margin" Value="0,10,0,4"/>
+    </Style>
+
+    <Style x:Key="BodyText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <!-- window title bar band for dialog windows -->
+    <Style x:Key="DialogHeader" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BrushTabStrip}"/>
+        <Setter Property="Padding" Value="16,12"/>
+    </Style>
+
+    <Style x:Key="DialogHeaderText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontFamily" Value="Segoe UI"/>
+    </Style>
+
+    <!-- small pill for status (downloads/extensions) -->
+    <Style x:Key="Pill" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource BrushHover}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="8,2"/>
+    </Style>
+
 </ResourceDictionary>
+

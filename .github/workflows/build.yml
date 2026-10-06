@@ -40,8 +40,67 @@ jobs:
           Write-Host "app version: $v"
           "APP_VERSION=$v" >> $env:GITHUB_ENV
 
-      - name: Upload artifacts
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup --version=6.3.1 -y --no-progress
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found after choco install" }
+          & $iscc "/DMyAppVersion=$env:APP_VERSION" "installer\latchi-browser.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+          Get-ChildItem "installer\Output"
+
+      - name: Upload artifacts (portable app)
         uses: actions/upload-artifact@v4
         with:
-          name: LATCHI-BROWSER-${{ env.APP_VERSION }}-win-x64
+          name: LATCHI-BROWSER-${{ env.APP_VERSION }}-win-x64-portable
           path: publish
+
+      - name: Upload artifacts (installer)
+        uses: actions/upload-artifact@v4
+        with:
+          name: LATCHI-BROWSER-${{ env.APP_VERSION }}-win-x64-setup
+          path: installer/Output/*.exe
+
+      - name: Attach release assets (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = "${env:GITHUB_REF}".Replace("refs/tags/", "")
+          $setup = Get-ChildItem "installer\Output\*.exe" | Select-Object -First 1
+          $zip = "LATCHI-BROWSER-$env:APP_VERSION-win-x64-portable.zip"
+          Compress-Archive -Path publish\* -DestinationPath $zip -Force
+          "SETUP_PATH=$($setup.FullName)" >> $env:GITHUB_ENV
+          "ZIP_PATH=$zip" >> $env:GITHUB_ENV
+          $sha = Get-FileHash -Algorithm SHA256 $setup.FullName, $zip | ForEach-Object { "$($_.Hash)  $([IO.Path]::GetFileName($_.Path))" }
+          $sha | Set-Content "SHA256SUMS.txt"
+          "SHA_PATH=SHA256SUMS.txt" >> $env:GITHUB_ENV
+          Write-Host "tag=$tag setup=$($setup.FullName)"
+
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: LATCHI Browser ${{ env.APP_VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          body: |
+            # LATCHI Browser v${{ env.APP_VERSION }}
+
+            Lightweight professional Windows browser built on WebView2 (Chromium).
+
+            **Downloads**
+            - `Setup` — per-user installer, no admin rights required (recommended)
+            - `portable.zip` — self-contained, unzip and run
+            - `SHA256SUMS.txt` — checksums
+
+            See SHA256SUMS.txt for file hashes. Requires Windows 10/11 x64
+            (WebView2 Evergreen runtime, installed by default on Windows 11).
+          files: |
+            ${{ env.SETUP_PATH }}
+            ${{ env.ZIP_PATH }}
+            ${{ env.SHA_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

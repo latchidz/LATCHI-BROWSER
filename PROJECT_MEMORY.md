@@ -33,19 +33,21 @@ WebView2 officially supports browser extensions: `AreBrowserExtensionsEnabled=tr
 
 ## Rounds roadmap (spec priorities)
 1. **DONE — Engine, WebView2 init, navigation, tabs, window/fullscreen** (+ §7 window controls, §11 shortcuts T/W/Shift+T/Tab, §22-23 engines, §5/§75 error UX, AR/EN).
-2. Profiles + Google accounts + persistent sessions + account switcher (§14-§20; ProfileName via CoreWebView2CreationProperties or EnsureCoreWebView2Async overload).
-3. Extension manager (unpacked folders) + video/audio validation (§28-34, §9-10).
-4. Downloads + bookmarks (+bar) + history (§24-27).
-5. Settings pages + Gemini AI sidebar (§51-61; DPAPI key storage; latest stable Flash model; NO key in code).
-6. Performance (TrySuspendAsync, MemoryUsageTargetLevel, tab suspension §66) + Premium UI (§83-86; user's 3D icon is assets/appicon.ico).
-7. Installer (Inno Setup, per-user, no admin) + release testing (§99-113).
+2. **DONE — Profiles + Google accounts + persistent sessions + account switcher** (§14-§20). Implemented via `WebView.CreationProperties = new CoreWebView2CreationProperties { ProfileName, IsInPrivateModeEnabled }` set BEFORE `EnsureCoreWebView2Async(sharedEnv)` — per-webview isolation under the ONE shared environment. In-window switcher: `Dictionary<profileId, tabs>`; switching only swaps visibility — other profiles' webviews stay ALIVE (sessions persist). Add profile → opens accounts.google.com in a real tab (login happens on the real Google page, never in LATCHI UI). Private window = MainWindow(profile, inPrivate) — no history recording.
+3. **DONE — Extension manager (unpacked folders)** (§28-§34): ExtensionsWindow bound to the ACTIVE tab's `core.Profile` (extensions are per-profile!). `GetBrowserExtensionsAsync`, toggle via `EnableAsync(bool)` (no DisableAsync in the .NET wrapper), `RemoveAsync`, install via FolderBrowserDialog + `AddBrowserExtensionAsync(folder)`. Honest note in the window: no Chrome Web Store — that is a WebView2 platform limit, not ours.
+4. **DONE — Downloads + bookmarks (+bar) + history** (§24-§27): DownloadManager wires `core.DownloadStarting` (Handled=true) and tracks `CoreWebView2DownloadOperation` live (Pause/Resume/Cancel are real op calls; ulong? → long cast for TotalBytesToReceive). BookmarkStore (global, toggle/star/Ctrl+D + bar Ctrl+Shift+B). HistoryStore per profile under `DataDir/Profiles/<id>/history.json` (cap 2000, consecutive-dedupe; private tabs never record).
+5. **DONE — Settings + Gemini AI sidebar** (§51-§61): SettingsWindow (language/home/engine/AI toggle/model/key). AI sidebar = column in MainWindow (not a separate window); Gemini client is PURE (request build + response parse, unit-tested offline); key lives ONLY in DPAPI (SecureKeyStore, `System.Security.Cryptography.ProtectedData`, CurrentUser + static entropy); header `x-goog-api-key`; no key → honest guidance message, NEVER a fake reply. System prompt = §58 verbatim (asserted by test).
+6. **DONE (honest subset) — Resources**: `MemoryUsageTargetLevel.Low` on minimize / `Normal` on restore (per tab, best-effort try/catch). **TrySuspendAsync is NOT reachable** from the WPF control (no controller exposure) — documented limitation, no fake claim. Zoom Ctrl+±0 via the WPF control's ZoomFactor (wraps controller). DevTools F12 = `OpenDevToolsWindow()` (NOT "OpenDevTools" — that's the WinRT name; the .NET wrapper name differs!). Multi-window Ctrl+N/Ctrl+Shift+N; App ShutdownMode=OnLastWindowClose.
+7. **DONE — Installer + release** (§99-§113): `installer/latchi-browser.iss` (Inno, per-user, PrivilegesRequired=lowest, fixed AppId, NO [UninstallDelete] — user data survives). CI: portable artifact + choco innosetup → ISCC → Setup artifact; on tag: zip + SHA256SUMS + public GitHub Release.
 
 ## Testing
-- xUnit on Core (any OS): UrlHelper matrix, SettingsStore (defaults/roundtrip/corrupt), SearchEngines, XamlBrushTests (Color-vs-Brush + missing StaticResource keys).
-- CI: GitHub Actions windows-latest — build + tests + self-contained win-x64 publish artifact. UI itself: NOT TESTED until user runs it (§108) — a Windows smoke runner is planned for a later round.
+- xUnit on Core (any OS): UrlHelper matrix, SettingsStore (defaults/roundtrip/corrupt), SearchEngines, XamlBrushTests (Color-vs-Brush + missing StaticResource keys), **ProfileStore, BookmarkStore, HistoryStore, Gemini (request shape + response parse incl. empty candidates — a real bug the tests caught)**. 70/70 green.
+- CI: GitHub Actions windows-latest — build + tests + self-contained win-x64 publish + Inno Setup installer + (on tag) release assets. UI itself: NOT TESTED until the user runs it (§108).
 
-## Known limitations (current)
-- Profiles all use the default WebView2 profile until round 2 (ProfileId placeholder in tab model).
-- Downloads use WebView2's default UI until round 4.
-- Tab pin/move/duplicate planned with the tab-polish round; Ctrl+N multi-window planned with the window-manager round.
-- Context menu is the WebView2 default (English) — localized custom menu comes with the UI round.
+## Known limitations (current, v1.0.0 — all stated in README)
+- Extensions: unpacked folders only (WebView2 platform limit). No Chrome Web Store.
+- No TrySuspend on minimize (WPF control hides the controller) — MemoryUsageTargetLevel only.
+- No find-in-page (no host API), no nested bookmark folders, dark theme only, no site-permissions UI, no PiP, no custom New Tab page, no Auto-Update.
+- AI sees only what the user types/pastes (no page context yet).
+- Removing a profile deletes OUR data (history.json etc.); WebView2's internal profile store stays under WebViewData until the app-data folder is cleaned (stated in the remove-confirm dialog).
+

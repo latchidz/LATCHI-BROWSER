@@ -1,3 +1,5 @@
+using LatchiBrowser.Core.Services;
+
 namespace LatchiBrowser.Core.Models;
 
 /// <summary>
@@ -16,4 +18,13 @@ public class AppSettings
 
     /// <summary>Address-bar search engine id (§23): google | bing | duckduckgo (custom comes with the Settings round).</summary>
     public string SearchEngineId { get; set; } = "google";
+
+    /// <summary>Show the bookmarks bar by default (§25, Ctrl+Shift+B toggles).</summary>
+    public bool ShowBookmarksBar { get; set; } = true;
+
+    /// <summary>LATCHI AI assistant (§54): disabled until the user provides a key in Settings.</summary>
+    public bool GeminiEnabled { get; set; } = false;
+
+    /// <summary>Gemini model id — user-overridable (§55); normalized on load.</summary>
+    public string GeminiModel { get; set; } = Gemini.DefaultModel;
 }

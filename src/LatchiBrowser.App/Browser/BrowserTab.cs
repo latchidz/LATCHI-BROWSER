@@ -25,12 +25,20 @@ public sealed class BrowserTab : IDisposable, INotifyPropertyChanged
     private bool _isPinned;
     private DateTime _lastUsedUtc = DateTime.UtcNow;
 
-    public BrowserTab(string language) => _title = Loc.S(language, "newTab");
+    public BrowserTab(LatchiBrowser.Core.Models.BrowserProfile profile, bool isInPrivate, string language)
+    {
+        Profile = profile;
+        IsInPrivate = isInPrivate;
+        _title = Loc.S(language, isInPrivate ? "privateTab" : "newTab");
+    }
 
     // ── identity & model (§12) ──────────────────────────────────────────
     public string TabId { get; } = Guid.NewGuid().ToString("N");
-    /// <summary>Profile this tab belongs to. "default" until the profiles round (§14) wires real profiles.</summary>
-    public string ProfileId { get; set; } = "default";
+    /// <summary>Profile this tab belongs to (§14) — full profile model, not just an id.</summary>
+    public LatchiBrowser.Core.Models.BrowserProfile Profile { get; }
+    public string ProfileId => Profile.ProfileId;
+    /// <summary>Private tabs (§36) run InPrivate under the same profile — and never record history.</summary>
+    public bool IsInPrivate { get; }
     public bool IsPinned { get => _isPinned; set => Set(ref _isPinned, value); }
     public DateTime LastUsedUtc { get => _lastUsedUtc; private set => Set(ref _lastUsedUtc, value); }
 
@@ -61,14 +69,31 @@ public sealed class BrowserTab : IDisposable, INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name!));
     }
 
-    /// <summary>Creates the WebView from the shared environment (never a new environment, §4/§82).</summary>
+    /// <summary>A real navigation completed — the window records it into the profile's history (§26).
+    /// Private tabs never raise this for history purposes (§36).</summary>
+    public event Action<BrowserTab, string, string>? NavigationCommitted;
+
+    /// <summary>Creates the WebView from the shared environment (never a new environment, §4/§82).
+    /// The tab's profile (name + InPrivate) is applied through CreationProperties BEFORE
+    /// initialization — that is how WebView2 puts this webview under the right isolated
+    /// profile while staying inside the one shared browser process set (§14/§19).</summary>
     public async Task InitializeAsync(CoreWebView2Environment environment, string startUrl)
     {
         if (WebView is not null) return;
-        var wv = new WebView2();
+        var wv = new WebView2
+        {
+            CreationProperties = new CoreWebView2CreationProperties
+            {
+                ProfileName = Profile.WebViewProfileName,
+                IsInPrivateModeEnabled = IsInPrivate,
+            },
+        };
         await wv.EnsureCoreWebView2Async(environment);
         WebView = wv;
         var core = wv.CoreWebView2!;
+
+        // real downloads, tracked by our own manager (§27)
+        Services.DownloadManager.Wire(core);
 
         core.DocumentTitleChanged += (s, e) =>
         {
@@ -76,7 +101,14 @@ public sealed class BrowserTab : IDisposable, INotifyPropertyChanged
         };
         core.SourceChanged += (s, e) => Address = core.Source?.ToString() ?? "";
         core.NavigationStarting += (s, e) => IsLoading = true;
-        core.NavigationCompleted += (s, e) => { IsLoading = false; SyncHistory(); };
+        core.NavigationCompleted += (s, e) =>
+        {
+            IsLoading = false;
+            SyncHistory();
+            // record into per-profile history — private tabs excluded (§36)
+            if (!IsInPrivate && !string.IsNullOrEmpty(Address))
+                NavigationCommitted?.Invoke(this, Title, Address);
+        };
         core.HistoryChanged += (s, e) => SyncHistory();
         core.FaviconChanged += (s, e) => FaviconUrl = core.FaviconUri;
         core.NewWindowRequested += (s, e) =>

@@ -1,0 +1,38 @@
+<Window x:Class="LatchiBrowser.App.Views.ExtensionsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Extensions"
+        Width="720" Height="500" MinWidth="560" MinHeight="380"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BrushWindow}"
+        FlowDirection="RightToLeft">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Style="{StaticResource DialogHeader}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="HeaderTitle" Style="{StaticResource DialogHeaderText}"/>
+                <Button x:Name="BtnInstall" Grid.Column="1" Style="{StaticResource PrimaryBtn}"
+                        Click="OnInstallClick"/>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="ListHost"/>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Background="{StaticResource BrushPanel}" Padding="14,10">
+            <TextBlock x:Name="NoteText" Style="{StaticResource BodyText}"
+                       Foreground="{StaticResource BrushMuted}" LineHeight="19"/>
+        </Border>
+    </Grid>
+</Window>

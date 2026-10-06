@@ -37,6 +37,9 @@ public class SettingsStore
         Current.Language = NormalizeLanguage(Current.Language);
         Current.HomePage = NormalizeHomePage(Current.HomePage);
         Current.SearchEngineId = NormalizeSearchEngine(Current.SearchEngineId);
+        Current.GeminiModel = string.IsNullOrWhiteSpace(Current.GeminiModel)
+            ? Gemini.DefaultModel
+            : Current.GeminiModel.Trim();
     }
 
     public void Save()
