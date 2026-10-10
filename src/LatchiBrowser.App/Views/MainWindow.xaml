@@ -1,0 +1,266 @@
+<Window x:Class="LatchiBrowser.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:LatchiBrowser.App.Views"
+        Title="LATCHI Browser"
+        MinWidth="900" MinHeight="560"
+        WindowState="Maximized"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BrushWindow}"
+        FlowDirection="RightToLeft"
+        Loaded="OnLoaded"
+        StateChanged="OnWindowStateChanged">
+
+    <!-- custom chrome: the tab strip IS the caption (draggable background);
+         interactive elements opt in with IsHitTestVisibleInChrome (mouse works everywhere) -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════ chrome area: tab strip + toolbar (hidden in fullscreen) ═══════════ -->
+        <Grid x:Name="ChromeArea" Grid.Row="0">
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- ═══ tab strip (= window caption) ═══ -->
+            <Grid Grid.Row="0" MinHeight="40" Background="{StaticResource BrushTabStrip}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- tabs (clickable inside the caption) -->
+                <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Hidden"
+                              VerticalScrollBarVisibility="Disabled">
+                    <ItemsControl x:Name="TabsControl"
+                                  WindowChrome.IsHitTestVisibleInChrome="True"
+                                  VerticalAlignment="Bottom">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource TabShape}"
+                                        Margin="3,6,3,0" Padding="8,6" MinWidth="140" MaxWidth="230"
+                                        MouseLeftButtonUp="OnTabClick"
+                                        MouseDown="OnTabMouseDown"
+                                        MouseRightButtonUp="OnTabRightClick">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Title}" FontSize="12"
+                                                   Foreground="{StaticResource BrushText}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,6,0"/>
+                                        <!-- tab close (small, real) -->
+                                        <Button Grid.Column="1" Click="OnTabClose"
+                                                Style="{StaticResource ToolBtn}"
+                                                Width="22" Height="22" FontSize="10"
+                                                Content="&#xE711;"
+                                                WindowChrome.IsHitTestVisibleInChrome="True"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <!-- caption buttons: tabs +, language, fullscreen, then real window controls (§7) -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Stretch"
+                            WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="BtnNewTab" Style="{StaticResource ToolBtn}" Content="&#xE710;"
+                            Click="OnNewTabClick" Width="34"/>
+                    <Button x:Name="BtnLang" Style="{StaticResource ToolBtn}" FontFamily="Segoe UI"
+                            FontWeight="SemiBold" FontSize="11.5" Width="40" Click="OnToggleLanguage"/>
+                    <Button x:Name="BtnFullscreen" Style="{StaticResource ToolBtn}" Content="&#xE740;"
+                            Click="OnToggleFullscreenClick"/>
+                    <Button x:Name="BtnWinMin" Style="{StaticResource ToolBtn}" Content="&#xE921;"
+                            Click="OnWinMinClick"/>
+                    <Button x:Name="BtnWinMax" Style="{StaticResource ToolBtn}" Content="&#xE922;"
+                            Click="OnWinMaxClick"/>
+                    <Button x:Name="BtnWinClose" Style="{StaticResource CloseBtn}" Content="&#xE711;"
+                            Click="OnWinCloseClick"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ═══ toolbar ═══ -->
+            <Grid Grid.Row="1" MinHeight="42" Background="{StaticResource BrushPanel}"
+                  MouseLeftButtonDown="OnToolbarDrag">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="4,0">
+                    <Button x:Name="BtnBack" Style="{StaticResource ToolBtn}" Content="&#xE72B;" Click="OnBackClick"/>
+                    <Button x:Name="BtnForward" Style="{StaticResource ToolBtn}" Content="&#xE72A;" Click="OnForwardClick"/>
+                    <Button x:Name="BtnReloadStop" Style="{StaticResource ToolBtn}" Content="&#xE72C;" Click="OnReloadStopClick"/>
+                    <Button x:Name="BtnHome" Style="{StaticResource ToolBtn}" Content="&#xE80F;" Click="OnHomeClick"/>
+                    <!-- account switcher (§14): real profiles, real isolated sessions -->
+                    <Button x:Name="BtnProfile" Style="{StaticResource ToolBtn}" Content="&#xE77B;"
+                            Click="OnProfileClick"/>
+                </StackPanel>
+
+                <!-- address bar: lock indicator + omnibox (URL ∪ search, §22) + star (§24) -->
+                <Border Grid.Column="1" Background="{StaticResource BrushField}"
+                        CornerRadius="15" Margin="6,5" Padding="10,0" Height="30"
+                        BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="LockGlyph" Grid.Column="0" Text="&#xE72E;" FontSize="11"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   Foreground="{StaticResource BrushMuted}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="AddressBox" Grid.Column="1" Style="{StaticResource AddressBox}"
+                                 KeyDown="OnAddressKeyDown"
+                                 GotKeyboardFocus="OnAddressFocus"/>
+                        <Button x:Name="BtnStar" Grid.Column="2" Style="{StaticResource ToolBtn}"
+                                Content="&#xE734;" Width="26" Height="24" FontSize="13"
+                                Click="OnStarClick"/>
+                    </Grid>
+                </Border>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="4,0,6,0">
+                    <!-- LATCHI AI sidebar (§54) -->
+                    <Button x:Name="BtnAi" Style="{StaticResource ToolBtn}" Content="&#xE90A;"
+                            Click="OnAiToggleClick"/>
+                    <!-- downloads (§27) -->
+                    <Button x:Name="BtnDownloads" Style="{StaticResource ToolBtn}" Content="&#xE896;"
+                            Click="OnDownloadsClick"/>
+                    <!-- menu (only real actions live here — §107 no fake features) -->
+                    <Button x:Name="BtnMenu" Style="{StaticResource ToolBtn}"
+                            Content="&#xE712;" Click="OnMenuClick"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- ═══════════ bookmarks bar (§25) ═══════════ -->
+        <Border x:Name="BookmarkBarRow" Grid.Row="1" Background="{StaticResource BrushPanel}"
+                BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1" MinHeight="34">
+            <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="BookmarkBarHost" Orientation="Horizontal" Margin="8,4"
+                            WindowChrome.IsHitTestVisibleInChrome="True"/>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ═══════════ main row: web content + AI sidebar ═══════════ -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- one WebView per tab (all profiles' tabs live here; visibility switches).
+                 The internal LATCHI start page (search + shortcuts) overlays it. -->
+            <Grid x:Name="ContentHost" Grid.Column="0" Background="{StaticResource BrushContentBg}"/>
+
+            <views:StartPageControl x:Name="StartPage" Grid.Column="0"
+                                    Visibility="Collapsed"
+                                    SearchRequested="OnStartPageSearch"
+                                    NavigateRequested="OnStartPageNavigate"/>
+
+            <!-- LATCHI AI (§54-§59): honest Gemini-backed assistant, no fake replies -->
+            <Border x:Name="AiPanel" Grid.Column="1" Width="330"
+                    Background="{StaticResource BrushPanel}"
+                    BorderBrush="{StaticResource BrushBorder}" BorderThickness="1,0,0,0"
+                    Visibility="Collapsed">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="{StaticResource BrushTabStrip}" Padding="12,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock x:Name="AiTitle" Style="{StaticResource DialogHeaderText}" FontSize="13.5"/>
+                                <TextBlock x:Name="AiModel" FontSize="10.5" FontFamily="Segoe UI"
+                                           Foreground="{StaticResource BrushMuted}"/>
+                            </StackPanel>
+                            <Button x:Name="BtnAiClose" Grid.Column="1" Style="{StaticResource ToolBtn}"
+                                    Content="&#xE711;" Width="28" Height="24" Click="OnAiCloseClick"/>
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer x:Name="AiScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="AiMessages" Margin="8,10"/>
+                    </ScrollViewer>
+
+                    <Border Grid.Row="2" Background="{StaticResource BrushTabStrip}" Padding="8">
+                        <StackPanel>
+                            <TextBlock x:Name="AiStatus" Style="{StaticResource BodyText}" FontSize="11"
+                                       Foreground="{StaticResource BrushMuted}" Margin="2,0,0,4"
+                                       Visibility="Collapsed"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="AiInput" Grid.Column="0" Style="{StaticResource FieldBox}"
+                                         Padding="8,6" KeyDown="OnAiInputKeyDown"/>
+                                <Button x:Name="BtnAiSend" Grid.Column="1" Style="{StaticResource PrimaryBtn}"
+                                        Width="40" Height="32" Margin="6,0,0,0" FontFamily="Segoe MDL2 Assets"
+                                        Content="&#xE724;" Click="OnAiSendClick"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ═══════════ runtime/datalayer error overlay (never a silent blank window, §5/§75) ═══════════ -->
+        <Grid x:Name="FatalErrorPanel" Grid.RowSpan="3" Visibility="Collapsed"
+              Background="#EE0B1220" Panel.ZIndex="10">
+            <Border Background="{StaticResource BrushPanel}"
+                    BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
+                    CornerRadius="10" Padding="28" Width="480" VerticalAlignment="Center"
+                    HorizontalAlignment="Center">
+                <StackPanel>
+                    <TextBlock x:Name="ErrTitle" FontSize="17" FontWeight="SemiBold"
+                               Foreground="{StaticResource BrushAccent}" TextWrapping="Wrap"
+                               Margin="0,0,0,10"/>
+                    <TextBlock x:Name="ErrDetail" FontSize="12.5"
+                               Foreground="{StaticResource BrushText}" TextWrapping="Wrap"
+                               Margin="0,0,0,18" LineHeight="20"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="BtnErrAction" Style="{StaticResource ToolBtn}"
+                                FontFamily="Segoe UI" FontSize="12.5" Width="Auto" Height="34"
+                                Padding="14,0" Click="OnErrActionClick"/>
+                        <Button x:Name="BtnErrClose" Style="{StaticResource ToolBtn}"
+                                FontFamily="Segoe UI" FontSize="12.5" Width="Auto" Height="34"
+                                Padding="14,0" Margin="10,0,0,0" Click="OnErrCloseClick"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

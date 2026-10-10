@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0BEBE419-19A0-44A1-A8B7-A8A50828E77C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LatchiBrowser.Core", "src\LatchiBrowser.Core\LatchiBrowser.Core.csproj", "{DCDF94F5-B7B8-4955-9264-40BEBB436453}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LatchiBrowser.App", "src\LatchiBrowser.App\LatchiBrowser.App.csproj", "{A9F00C2E-33B2-4AA0-88D4-59B2D2BB4E58}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{20EA869D-A4C4-4C69-B205-D8524B5D9112}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LatchiBrowser.Tests", "tests\LatchiBrowser.Tests\LatchiBrowser.Tests.csproj", "{45AF8B1D-EAB7-495A-8CE6-A04A762C5C1C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DCDF94F5-B7B8-4955-9264-40BEBB436453}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DCDF94F5-B7B8-4955-9264-40BEBB436453}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DCDF94F5-B7B8-4955-9264-40BEBB436453}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DCDF94F5-B7B8-4955-9264-40BEBB436453}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A9F00C2E-33B2-4AA0-88D4-59B2D2BB4E58}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9F00C2E-33B2-4AA0-88D4-59B2D2BB4E58}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9F00C2E-33B2-4AA0-88D4-59B2D2BB4E58}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9F00C2E-33B2-4AA0-88D4-59B2D2BB4E58}.Release|Any CPU.Build.0 = Release|Any CPU
+		{45AF8B1D-EAB7-495A-8CE6-A04A762C5C1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45AF8B1D-EAB7-495A-8CE6-A04A762C5C1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45AF8B1D-EAB7-495A-8CE6-A04A762C5C1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45AF8B1D-EAB7-495A-8CE6-A04A762C5C1C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DCDF94F5-B7B8-4955-9264-40BEBB436453} = {0BEBE419-19A0-44A1-A8B7-A8A50828E77C}
+		{A9F00C2E-33B2-4AA0-88D4-59B2D2BB4E58} = {0BEBE419-19A0-44A1-A8B7-A8A50828E77C}
+		{45AF8B1D-EAB7-495A-8CE6-A04A762C5C1C} = {20EA869D-A4C4-4C69-B205-D8524B5D9112}
+	EndGlobalSection
+EndGlobal
